@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>杰冠产品学习考试系统</title>
+    <script src="data/images-data.js" onerror=""></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: #1a2332;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            height: 56px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-logo {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            margin-right: 40px;
+            white-space: nowrap;
+        }
+
+        .navbar-links {
+            display: flex;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .navbar-links a {
+            color: rgba(255, 255, 255, 0.65);
+            text-decoration: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: color 0.2s, background 0.2s;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .navbar-links a:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .navbar-links a.active {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .navbar-admin {
+            color: rgba(255, 255, 255, 0.45);
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            background: none;
+            transition: color 0.2s, border-color 0.2s;
+            user-select: none;
+        }
+
+        .navbar-admin:hover {
+            color: rgba(255, 255, 255, 0.75);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Pages */
+        .page {
+            display: none;
+            padding: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .page-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1a2332;
+            margin-bottom: 16px;
+        }
+
+        .page-placeholder {
+            background: #fff;
+            border-radius: 8px;
+            padding: 48px;
+            text-align: center;
+            color: #999;
+            font-size: 15px;
+            border: 1px dashed #e0e0e0;
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0 12px;
+            }
+
+            .navbar-logo {
+                margin-right: 16px;
+                font-size: 16px;
+            }
+
+            .navbar-links a {
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+            .question-area {
+                flex-direction: column;
+            }
+            .option-grid {
+                grid-template-columns: 1fr;
+            }
+            .modal {
+                width: 95%;
+                margin: 0 10px;
+            }
+            .admin-table {
+                font-size: 12px;
+            }
+            .admin-table th,
+            .admin-table td {
+                padding: 6px 8px;
+            }
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .filter-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all .2s;
+            color: #555;
+        }
+        .filter-btn:hover {
+            border-color: #1a73e8;
+            color: #1a73e8;
+        }
+        .filter-btn.active {
+            background: #1a73e8;
+            color: #fff;
+            border-color: #1a73e8;
+        }
+
+        /* Product grid */
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+        .product-card {
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+            transition: transform .2s, box-shadow .2s;
+        }
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,.12);
+        }
+        .product-card .card-img {
+            width: 100%;
+            height: 220px;
+            object-fit: contain;
+            background: #f8f9fa;
+            padding: 16px;
+        }
+        .product-card .card-body {
+            padding: 16px;
+        }
+        .product-card .card-model {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a2332;
+            margin-bottom: 4px;
+        }
+        .product-card .card-name {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .product-card .card-params {
+            font-size: 12px;
+            color: #555;
+            line-height: 1.8;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 12px;
+        }
+        .product-card .card-params .label {
+            color: #999;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        .product-card .card-func {
+            font-size: 12px;
+            color: #1a73e8;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+        .no-image {
+            width: 100%;
+            height: 220px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #bbb;
+            font-size: 14px;
+        }
+
+        /* Practice mode */
+        .practice-setup {
+            text-align: center;
+            padding: 40px;
+        }
+        .practice-setup select {
+            padding: 10px 20px;
+            font-size: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-right: 12px;
+        }
+        .practice-setup .start-btn {
+            padding: 10px 30px;
+            font-size: 15px;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .practice-setup .start-btn:hover {
+            background: #1557b0;
+        }
+        .question-area {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+            padding: 20px 0;
+        }
+        .question-left {
+            flex: 1;
+            text-align: center;
+        }
+        .question-left img {
+            max-width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #f8f9fa;
+            padding: 16px;
+        }
+        .question-left .model-display {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a2332;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        .question-right {
+            flex: 1;
+        }
+        .option-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .option-item {
+            padding: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all .2s;
+            background: #fff;
+        }
+        .option-item:hover {
+            border-color: #1a73e8;
+            background: #f0f7ff;
+        }
+        .option-item img {
+            max-width: 100%;
+            max-height: 120px;
+            object-fit: contain;
+            margin-bottom: 8px;
+        }
+        .option-item .opt-text {
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .option-item.correct {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+        .option-item.wrong {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+        .practice-controls {
+            text-align: center;
+            margin-top: 24px;
+        }
+        .practice-controls .next-btn {
+            padding: 12px 40px;
+            font-size: 15px;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .practice-score {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        /* Exam mode */
+        .exam-setup {
+            text-align: center;
+            padding: 40px;
+        }
+        .exam-setup .start-btn {
+            padding: 12px 40px;
+            font-size: 16px;
+            background: #e65100;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .exam-setup .start-btn:hover {
+            background: #bf360c;
+        }
+        .exam-progress {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .exam-progress .progress-text {
+            font-size: 14px;
+            color: #666;
+        }
+        .exam-nav {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+        .exam-nav .submit-btn {
+            padding: 12px 40px;
+            font-size: 15px;
+            background: #e65100;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .exam-nav .submit-btn:hover {
+            background: #bf360c;
+        }
+        .exam-result {
+            text-align: center;
+            padding: 40px;
+        }
+        .exam-result .score-big {
+            font-size: 64px;
+            font-weight: 800;
+            color: #e65100;
+        }
+        .exam-result .score-label {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 24px;
+        }
+        .exam-review {
+            margin-top: 30px;
+            text-align: left;
+        }
+        .exam-review h3 {
+            margin-bottom: 16px;
+        }
+        .exam-review .review-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .exam-review .review-item.correct {
+            border-left: 4px solid #4caf50;
+            background: #f9fff9;
+        }
+        .exam-review .review-item.wrong {
+            border-left: 4px solid #f44336;
+            background: #fff9f9;
+        }
+/* Admin panel */
+.admin-login {
+  text-align: center;
+  padding: 60px;
+}
+.admin-login input {
+  padding: 12px 20px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  width: 200px;
+  margin-right: 12px;
+}
+.admin-login button {
+  padding: 12px 30px;
+  font-size: 15px;
+  background: #1a2332;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.admin-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.admin-toolbar .add-btn {
+  padding: 10px 24px;
+  background: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.admin-toolbar .reset-btn {
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.admin-table th {
+  background: #1a2332;
+  color: #fff;
+  padding: 12px;
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.admin-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.admin-table tr:hover {
+  background: #f8f9fa;
+}
+.admin-table .btn-edit {
+  padding: 4px 12px;
+  background: #e3f2fd;
+  color: #1a73e8;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-right: 4px;
+}
+.admin-table .btn-delete {
+  padding: 4px 12px;
+  background: #ffebee;
+  color: #f44336;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,.5);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 30px;
+  width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal h3 {
+  margin-bottom: 20px;
+}
+.modal label {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 4px;
+  margin-top: 12px;
+}
+.modal input,
+.modal select,
+.modal textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.modal textarea {
+  height: 80px;
+  resize: vertical;
+}
+.modal .modal-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.modal .btn-save {
+  padding: 10px 24px;
+  background: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.modal .btn-cancel {
+  padding: 10px 24px;
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.ai-generate-btn {
+  padding: 6px 16px;
+  background: #ff9800;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 4px;
+}
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="navbar-logo">杰冠产品学习系统</div>
+        <div class="navbar-links">
+            <a id="nav-learn" class="active" onclick="showPage('learn')">学习中心</a>
+            <a id="nav-practice" onclick="showPage('practice')">刷题练习</a>
+            <a id="nav-exam" onclick="showPage('exam')">模拟考试</a>
+            <a id="nav-wrong" onclick="showPage('wrong')">错题集</a>
+        </div>
+        <button class="navbar-admin" onclick="showAdminLogin()">管理</button>
+    </nav>
+
+    <div id="page-learn" class="page active">
+        <h2 class="page-title">学习中心</h2>
+        <div class="filter-bar" id="filterBar"></div>
+        <div class="product-grid" id="productGrid"></div>
+    </div>
+
+    <div id="page-practice" class="page">
+        <h2 class="page-title">刷题练习</h2>
+        <div id="practiceContent"></div>
+    </div>
+
+    <div id="page-exam" class="page">
+        <h2 class="page-title">模拟考试</h2>
+        <div id="examContent"></div>
+    </div>
+
+    <div id="page-wrong" class="page">
+        <h2 class="page-title">错题集</h2>
+        <div id="wrongContent"></div>
+    </div>
+
+    <div id="page-admin" class="page">
+        <h2 class="page-title">后台管理</h2>
+        <div id="adminContent"></div>
+    </div>
+
+    <div id="modal" class="modal-overlay" style="display:none;">
+        <div class="modal" id="modalContent"></div>
+    </div>
+
+    <script>
+        var SERIES = [
+            { id: 'combi-steamer',      label: '万能蒸烤箱系列 Combi-steamer Series' },
+            { id: 'combination-oven',   label: '组合炉系列 Combination Oven Series' },
+            { id: 'chicken-rotisserie', label: '超市烤鸡炉系列 Supermarket Chicken Rotisserie Series' },
+            { id: 'electric-fryer',     label: '电炸炉系列 Electric Fryer Series' },
+            { id: 'gas-fryer',          label: '燃气炸炉系列 Gas Fryer Series' },
+            { id: 'griddle',            label: '扒炉系列 Griddle Series' },
+            { id: 'pasta-cooker',       label: '煮面炉系列 Pasta Cooker Series' },
+            { id: 'western-fastfood',   label: '西式快餐系列 Western Fast Food Series' },
+            { id: 'coffee-machine',     label: '咖啡机/茶咖机系列 Coffee/Tea Machine Series' },
+            { id: 'oven',               label: '烤箱系列 Oven Series' },
+            { id: 'supermarket',        label: '超市连锁便利速食系列 Supermarket Chain Store Fast Food Series' },
+            { id: 'snack',              label: '小吃系列 Snack Series' },
+            { id: 'induction',          label: '电磁炉系列 Induction Cooker Series' }
+        ];
+
+        var DEFAULT_PRODUCTS = [
+            {
+                id: 'p1',
+                model: 'EOA-101-CMP',
+                name: '10盘万能蒸烤箱',
+                nameEn: '10-Pan Combi-steamer',
+                series: 'combi-steamer',
+                image: '',
+                parameters: '电压: 380V | 功率: 36kW | 尺寸: 940×910×1850mm | 容量: 10盘GN1/1',
+                parametersEn: 'Voltage: 380V | Power: 36kW | Dimensions: 940×910×1850mm | Capacity: 10x GN1/1',
+                functions: '蒸、烤、蒸烤组合、低温慢煮、烟熏、发酵、炸、自动清洗'
+            },
+            {
+                id: 'p2',
+                model: 'EOA-051-CMP',
+                name: '5盘万能蒸烤箱',
+                nameEn: '5-Pan Combi-steamer',
+                series: 'combi-steamer',
+                image: '',
+                parameters: '电压: 380V | 功率: 20kW | 尺寸: 860×810×1100mm | 容量: 5盘GN1/1',
+                parametersEn: 'Voltage: 380V | Power: 20kW | Dimensions: 860×810×1100mm | Capacity: 5x GN1/1',
+                functions: '蒸、烤、蒸烤组合、低温慢煮、发酵、自动清洗'
+            },
+            {
+                id: 'p3',
+                model: 'COA-061',
+                name: '6盘组合炉',
+                nameEn: '6-Pan Combination Oven',
+                series: 'combination-oven',
+                image: '',
+                parameters: '电压: 380V | 功率: 24kW | 尺寸: 850×800×1200mm | 容量: 6盘GN1/1',
+                parametersEn: 'Voltage: 380V | Power: 24kW | Dimensions: 850×800×1200mm | Capacity: 6x GN1/1',
+                functions: '蒸、烤、组合烹饪、热风循环、自动烹饪程序'
+            },
+            {
+                id: 'p4',
+                model: 'COA-101',
+                name: '10盘组合炉',
+                nameEn: '10-Pan Combination Oven',
+                series: 'combination-oven',
+                image: '',
+                parameters: '电压: 380V | 功率: 38kW | 尺寸: 940×910×1850mm | 容量: 10盘GN1/1',
+                parametersEn: 'Voltage: 380V | Power: 38kW | Dimensions: 940×910×1850mm | Capacity: 10x GN1/1',
+                functions: '蒸、烤、组合烹饪、热风循环、自动烹饪程序、多段烹饪'
+            },
+            {
+                id: 'p5',
+                model: 'RCA-8P',
+                name: '8叉超市烤鸡炉',
+                nameEn: '8-Spit Supermarket Chicken Rotisserie',
+                series: 'chicken-rotisserie',
+                image: '',
+                parameters: '电压: 380V | 功率: 18kW | 尺寸: 900×750×1650mm | 容量: 8叉',
+                parametersEn: 'Voltage: 380V | Power: 18kW | Dimensions: 900×750×1650mm | Capacity: 8 spits',
+                functions: '旋转烤鸡、烤串、温度控制、自动计时、玻璃门展示'
+            },
+            {
+                id: 'p6',
+                model: 'RCA-12P',
+                name: '12叉超市烤鸡炉',
+                nameEn: '12-Spit Supermarket Chicken Rotisserie',
+                series: 'chicken-rotisserie',
+                image: '',
+                parameters: '电压: 380V | 功率: 26kW | 尺寸: 1200×750×1650mm | 容量: 12叉',
+                parametersEn: 'Voltage: 380V | Power: 26kW | Dimensions: 1200×750×1650mm | Capacity: 12 spits',
+                functions: '旋转烤鸡、烤串、温度控制、自动计时、大容量展示'
+            },
+            {
+                id: 'p7',
+                model: 'EFA-201',
+                name: '单缸电炸炉',
+                nameEn: 'Single-Tank Electric Fryer',
+                series: 'electric-fryer',
+                image: '',
+                parameters: '电压: 380V | 功率: 12kW | 尺寸: 400×600×900mm | 油缸容量: 20L',
+                parametersEn: 'Voltage: 380V | Power: 12kW | Dimensions: 400×600×900mm | Tank: 20L',
+                functions: '恒温油炸、油温可调60-200°C、自动断电保护、沥油架'
+            },
+            {
+                id: 'p8',
+                model: 'EFA-401',
+                name: '双缸电炸炉',
+                nameEn: 'Double-Tank Electric Fryer',
+                series: 'electric-fryer',
+                image: '',
+                parameters: '电压: 380V | 功率: 24kW | 尺寸: 800×600×900mm | 油缸容量: 2×20L',
+                parametersEn: 'Voltage: 380V | Power: 24kW | Dimensions: 800×600×900mm | Tanks: 2x 20L',
+                functions: '恒温油炸、独立控温、油温可调60-200°C、自动断电保护、沥油架'
+            },
+            {
+                id: 'p9',
+                model: 'GFA-201',
+                name: '单缸燃气炸炉',
+                nameEn: 'Single-Tank Gas Fryer',
+                series: 'gas-fryer',
+                image: '',
+                parameters: '燃料: 天然气/液化气 | 功率: 30kW | 尺寸: 400×600×900mm | 油缸容量: 20L',
+                parametersEn: 'Fuel: NG/LPG | Power: 30kW | Dimensions: 400×600×900mm | Tank: 20L',
+                functions: '燃气恒温油炸、快速升温、油温可调60-200°C、熄火保护'
+            },
+            {
+                id: 'p10',
+                model: 'GFA-401',
+                name: '双缸燃气炸炉',
+                nameEn: 'Double-Tank Gas Fryer',
+                series: 'gas-fryer',
+                image: '',
+                parameters: '燃料: 天然气/液化气 | 功率: 60kW | 尺寸: 800×600×900mm | 油缸容量: 2×20L',
+                parametersEn: 'Fuel: NG/LPG | Power: 60kW | Dimensions: 800×600×900mm | Tanks: 2x 20L',
+                functions: '燃气恒温油炸、独立控温、快速升温、熄火保护'
+            },
+            {
+                id: 'p11',
+                model: 'GDA-600',
+                name: '600mm平面扒炉',
+                nameEn: '600mm Flat Griddle',
+                series: 'griddle',
+                image: '',
+                parameters: '电压: 380V | 功率: 8kW | 尺寸: 600×600×350mm | 板厚: 12mm',
+                parametersEn: 'Voltage: 380V | Power: 8kW | Dimensions: 600×600×350mm | Plate: 12mm',
+                functions: '平面煎烤、恒温控制、油槽导油、防溅挡板'
+            },
+            {
+                id: 'p12',
+                model: 'GDA-900',
+                name: '900mm平面扒炉',
+                nameEn: '900mm Flat Griddle',
+                series: 'griddle',
+                image: '',
+                parameters: '电压: 380V | 功率: 12kW | 尺寸: 900×600×350mm | 板厚: 12mm',
+                parametersEn: 'Voltage: 380V | Power: 12kW | Dimensions: 900×600×350mm | Plate: 12mm',
+                functions: '平面煎烤、分区控温、油槽导油、防溅挡板'
+            },
+            {
+                id: 'p13',
+                model: 'PCA-2B',
+                name: '双缸煮面炉',
+                nameEn: '2-Basket Pasta Cooker',
+                series: 'pasta-cooker',
+                image: '',
+                parameters: '电压: 380V | 功率: 12kW | 尺寸: 400×600×900mm | 缸容量: 2×12L',
+                parametersEn: 'Voltage: 380V | Power: 12kW | Dimensions: 400×600×900mm | Baskets: 2x 12L',
+                functions: '煮面、恒温水循环、自动补水、独立控温'
+            },
+            {
+                id: 'p14',
+                model: 'PCA-4B',
+                name: '四缸煮面炉',
+                nameEn: '4-Basket Pasta Cooker',
+                series: 'pasta-cooker',
+                image: '',
+                parameters: '电压: 380V | 功率: 24kW | 尺寸: 800×600×900mm | 缸容量: 4×12L',
+                parametersEn: 'Voltage: 380V | Power: 24kW | Dimensions: 800×600×900mm | Baskets: 4x 12L',
+                functions: '煮面、恒温水循环、自动补水、独立控温、大容量'
+            },
+            {
+                id: 'p15',
+                model: 'WFA-301',
+                name: '西式快餐工作台',
+                nameEn: 'Western Fast Food Work Table',
+                series: 'western-fastfood',
+                image: '',
+                parameters: '电压: 220V | 功率: 3kW | 尺寸: 1500×700×850mm | 制冷: 2~8°C',
+                parametersEn: 'Voltage: 220V | Power: 3kW | Dimensions: 1500×700×850mm | Cooling: 2~8°C',
+                functions: '冷藏保鲜、工作台面、调料架、方便快捷组装餐品'
+            },
+            {
+                id: 'p16',
+                model: 'WFA-501',
+                name: '汉堡机',
+                nameEn: 'Burger Machine',
+                series: 'western-fastfood',
+                image: '',
+                parameters: '电压: 220V | 功率: 5kW | 尺寸: 500×450×350mm | 加热板: 270mm',
+                parametersEn: 'Voltage: 220V | Power: 5kW | Dimensions: 500×450×350mm | Plate: 270mm',
+                functions: '双面加热汉堡包、恒温控制、自动计时、不粘涂层'
+            },
+            {
+                id: 'p17',
+                model: 'CMA-1G',
+                name: '单头半自动咖啡机',
+                nameEn: '1-Group Semi-Auto Coffee Machine',
+                series: 'coffee-machine',
+                image: '',
+                parameters: '电压: 220V | 功率: 2.5kW | 尺寸: 350×500×450mm | 锅炉容量: 3L',
+                parametersEn: 'Voltage: 220V | Power: 2.5kW | Dimensions: 350×500×450mm | Boiler: 3L',
+                functions: '意式浓缩萃取、蒸汽打奶泡、PID温控、预浸泡'
+            },
+            {
+                id: 'p18',
+                model: 'CMA-2G',
+                name: '双头半自动咖啡机',
+                nameEn: '2-Group Semi-Auto Coffee Machine',
+                series: 'coffee-machine',
+                image: '',
+                parameters: '电压: 220V | 功率: 4.5kW | 尺寸: 700×500×450mm | 锅炉容量: 6L',
+                parametersEn: 'Voltage: 220V | Power: 4.5kW | Dimensions: 700×500×450mm | Boiler: 6L',
+                functions: '意式浓缩萃取、蒸汽打奶泡、双头独立冲煮、PID温控'
+            },
+            {
+                id: 'p19',
+                model: 'OVA-3D',
+                name: '三层六盘电烤箱',
+                nameEn: '3-Deck 6-Pan Electric Oven',
+                series: 'oven',
+                image: '',
+                parameters: '电压: 380V | 功率: 21kW | 尺寸: 1250×900×1800mm | 容量: 6盘600×400mm',
+                parametersEn: 'Voltage: 380V | Power: 21kW | Dimensions: 1250×900×1800mm | Capacity: 6x 600x400mm',
+                functions: '上下火独立控温、热风循环、常温~350°C、多层同烤'
+            },
+            {
+                id: 'p20',
+                model: 'OVA-1D',
+                name: '单层两盘电烤箱',
+                nameEn: '1-Deck 2-Pan Electric Oven',
+                series: 'oven',
+                image: '',
+                parameters: '电压: 220V | 功率: 6kW | 尺寸: 650×900×650mm | 容量: 2盘600×400mm',
+                parametersEn: 'Voltage: 220V | Power: 6kW | Dimensions: 650×900×650mm | Capacity: 2x 600x400mm',
+                functions: '上下火独立控温、常温~350°C、玻璃视窗、炉灯照明'
+            },
+            {
+                id: 'p21',
+                model: 'SFA-H1',
+                name: '便利店热风烤箱',
+                nameEn: 'Convenience Store Convection Oven',
+                series: 'supermarket',
+                image: '',
+                parameters: '电压: 220V | 功率: 3kW | 尺寸: 550×500×650mm | 容量: 4盘GN1/1',
+                parametersEn: 'Voltage: 220V | Power: 3kW | Dimensions: 550×500×650mm | Capacity: 4x GN1/1',
+                functions: '热风循环加热、自动菜单、解冻功能、一键操作'
+            },
+            {
+                id: 'p22',
+                model: 'SFA-D1',
+                name: '便利店展示热柜',
+                nameEn: 'Convenience Store Heated Display',
+                series: 'supermarket',
+                image: '',
+                parameters: '电压: 220V | 功率: 1.5kW | 尺寸: 600×450×1350mm | 层架: 4层',
+                parametersEn: 'Voltage: 220V | Power: 1.5kW | Dimensions: 600×450×1350mm | Shelves: 4',
+                functions: '恒温展示保温、湿度控制、防雾玻璃门、LED照明'
+            },
+            {
+                id: 'p23',
+                model: 'SNA-C1',
+                name: '章鱼丸子机',
+                nameEn: 'Takoyaki Machine',
+                series: 'snack',
+                image: '',
+                parameters: '电压: 220V | 功率: 2.5kW | 尺寸: 400×350×250mm | 模具: 36孔',
+                parametersEn: 'Voltage: 220V | Power: 2.5kW | Dimensions: 400×350×250mm | Molds: 36 holes',
+                functions: '章鱼丸子制作、铸铁模具、温度可调、旋转成型'
+            },
+            {
+                id: 'p24',
+                model: 'SNA-H1',
+                name: '电热华夫饼机',
+                nameEn: 'Electric Waffle Maker',
+                series: 'snack',
+                image: '',
+                parameters: '电压: 220V | 功率: 1.8kW | 尺寸: 300×350×250mm | 模具: 双盘',
+                parametersEn: 'Voltage: 220V | Power: 1.8kW | Dimensions: 300×350×250mm | Plates: double',
+                functions: '华夫饼制作、双面加热、恒温控制、不粘涂层'
+            },
+            {
+                id: 'p25',
+                model: 'ICA-3500',
+                name: '3500W台式电磁炉',
+                nameEn: '3500W Countertop Induction Cooker',
+                series: 'induction',
+                image: '',
+                parameters: '电压: 220V | 功率: 3.5kW | 尺寸: 400×500×200mm | 线圈直径: 270mm',
+                parametersEn: 'Voltage: 220V | Power: 3.5kW | Dimensions: 400×500×200mm | Coil: 270mm',
+                functions: '电磁加热、9档火力调节、定时功能、过热保护'
+            },
+            {
+                id: 'p26',
+                model: 'ICA-5000',
+                name: '5000W大功率电磁炉',
+                nameEn: '5000W High-Power Induction Cooker',
+                series: 'induction',
+                image: '',
+                parameters: '电压: 380V | 功率: 5kW | 尺寸: 450×550×200mm | 线圈直径: 300mm',
+                parametersEn: 'Voltage: 380V | Power: 5kW | Dimensions: 450×550×200mm | Coil: 300mm',
+                functions: '大功率电磁加热、9档火力调节、定时功能、过热保护、大面板'
+            }
+        ];
+
+        function getProducts() {
+            var custom = JSON.parse(localStorage.getItem('products') || 'null');
+            var products = custom ? custom : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+            // Merge batch-imported images
+            if (typeof IMAGE_DATA !== 'undefined') {
+                for (var i = 0; i < products.length; i++) {
+                    if (!products[i].image && IMAGE_DATA[products[i].model]) {
+                        products[i].image = IMAGE_DATA[products[i].model];
+                    }
+                }
+            }
+            return products;
+        }
+
+        function saveProducts(products) {
+            localStorage.setItem('products', JSON.stringify(products));
+        }
+
+        function resetProducts() {
+            localStorage.removeItem('products');
+        }
+
+        function addProduct(product) {
+            var products = getProducts();
+            product.id = 'p' + Date.now();
+            products.push(product);
+            saveProducts(products);
+            return product;
+        }
+
+        function updateProduct(id, data) {
+            var products = getProducts();
+            var idx = -1;
+            for (var i = 0; i < products.length; i++) {
+                if (products[i].id === id) { idx = i; break; }
+            }
+            if (idx !== -1) {
+                for (var key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        products[idx][key] = data[key];
+                    }
+                }
+                saveProducts(products);
+            }
+        }
+
+        function deleteProduct(id) {
+            var products = getProducts().filter(function(p) { return p.id !== id; });
+            saveProducts(products);
+        }
+
+        var currentFilter = 'all';
+
+        function renderFilterBar() {
+            var bar = document.getElementById('filterBar');
+            var html = '<button class="filter-btn active" onclick="filterBySeries(\'all\', this)">全部</button>';
+            for (var i = 0; i < SERIES.length; i++) {
+                var s = SERIES[i];
+                html += '<button class="filter-btn" onclick="filterBySeries(\'' + s.id + '\', this)">' + s.label.split(' ')[0] + '</button>';
+            }
+            bar.innerHTML = html;
+        }
+
+        function filterBySeries(seriesId, btn) {
+            currentFilter = seriesId;
+            var btns = document.querySelectorAll('.filter-btn');
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+            btn.classList.add('active');
+            renderProductGrid();
+        }
+
+        function renderProductGrid() {
+            var grid = document.getElementById('productGrid');
+            var products = getProducts();
+            var filtered = [];
+            for (var i = 0; i < products.length; i++) {
+                if (currentFilter === 'all' || products[i].series === currentFilter) {
+                    filtered.push(products[i]);
+                }
+            }
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div style="text-align:center;color:#999;padding:60px;">暂无产品数据</div>';
+                return;
+            }
+            var html = '';
+            for (var i = 0; i < filtered.length; i++) {
+                var p = filtered[i];
+                html += '<div class="product-card">';
+                if (p.image) {
+                    html += '<img class="card-img" src="' + p.image + '" alt="' + p.model + '">';
+                } else {
+                    html += '<div class="no-image">暂无图片</div>';
+                }
+                html += '<div class="card-body">';
+                html += '<div class="card-model">' + p.model + '</div>';
+                html += '<div class="card-name">' + (p.nameEn || p.name) + '</div>';
+                html += '<div class="card-params">';
+                html += '<div class="label">Product Parameters / 产品参数</div>';
+                html += '<div>' + (p.parameters || '-') + '</div>';
+                if (p.parametersEn) {
+                    html += '<div style="color:#999;margin-top:4px;">' + p.parametersEn + '</div>';
+                }
+                html += '</div>';
+                if (p.functions) {
+                    html += '<div class="card-func"> ' + p.functions + '</div>';
+                }
+                html += '</div></div>';
+            }
+            grid.innerHTML = html;
+        }
+
+        function showPage(name) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(function (p) {
+                p.classList.remove('active');
+            });
+
+            // Deactivate all nav links
+            document.querySelectorAll('.navbar-links a').forEach(function (a) {
+                a.classList.remove('active');
+            });
+
+            // Show selected page
+            var page = document.getElementById('page-' + name);
+            if (page) {
+                page.classList.add('active');
+            }
+
+            // Highlight active nav link
+            var nav = document.getElementById('nav-' + name);
+            if (nav) {
+                nav.classList.add('active');
+            }
+        }
+
+        // Practice mode
+        var practiceState = { series: 'all', questions: [], current: 0, correct: 0, total: 0 };
+
+function renderPracticeSetup() {
+  var el = document.getElementById('practiceContent');
+  var options = '<option value="all">全部系列</option>';
+  for (var i = 0; i < SERIES.length; i++) {
+    options += '<option value="' + SERIES[i].id + '">' + SERIES[i].label + '</option>';
+  }
+  el.innerHTML = '<div class="practice-setup">' +
+    '<p style="margin-bottom:20px;color:#666;">选择要练习的产品系列，然后开始刷题</p>' +
+    '<select id="practiceSeries">' + options + '</select>' +
+    '<button class="start-btn" onclick="startPractice()">开始练习</button>' +
+    '</div>';
+}
+
+function startPractice() {
+  var series = document.getElementById('practiceSeries').value;
+  var allProducts = getProducts();
+  var products = [];
+  for (var i = 0; i < allProducts.length; i++) {
+    if (series === 'all' || allProducts[i].series === series) {
+      products.push(allProducts[i]);
+    }
+  }
+  if (products.length < 2) {
+    alert('该系列下产品不足2个，无法出题');
+    return;
+  }
+  practiceState = {
+    series: series,
+    questions: generateQuestions(products),
+    current: 0,
+    correct: 0,
+    total: 0
+  };
+  showPracticeQuestion();
+}
+
+function generateQuestions(products) {
+  var questions = [];
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    questions.push({ type: 'img-to-model', product: p, options: pickDistractors(p, products, 'model') });
+    questions.push({ type: 'model-to-img', product: p, options: pickDistractors(p, products, 'image') });
+  }
+  return shuffleArray(questions);
+}
+
+function pickDistractors(correct, pool, field) {
+  var others = [];
+  for (var i = 0; i < pool.length; i++) {
+    if (pool[i].id !== correct.id) others.push(pool[i]);
+  }
+  var shuffled = shuffleArray(others);
+  var distractors = [];
+  for (var i = 0; i < Math.min(3, shuffled.length); i++) {
+    distractors.push({ id: shuffled[i].id, value: shuffled[i][field], model: shuffled[i].model, image: shuffled[i].image });
+  }
+  var answer = { id: correct.id, value: correct[field], model: correct.model, image: correct.image };
+  return shuffleArray([answer].concat(distractors));
+}
+
+function shuffleArray(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = a[i];
+    a[i] = a[j];
+    a[j] = temp;
+  }
+  return a;
+}
+
+function showPracticeQuestion() {
+  var el = document.getElementById('practiceContent');
+  var q = practiceState.questions[practiceState.current];
+  if (!q) { showPracticeResult(); return; }
+
+  var leftContent, rightContent;
+  if (q.type === 'img-to-model') {
+    if (q.product.image) {
+      leftContent = '<img src="' + q.product.image + '" alt="' + q.product.model + '">';
+    } else {
+      leftContent = '<div class="no-image" style="height:300px;">' + q.product.model + '</div>';
+    }
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="checkPracticeAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
+  } else {
+    leftContent = '<div class="model-display">' + q.product.model + '</div>';
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="checkPracticeAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      if (q.options[i].image) {
+        rightContent += '<img src="' + q.options[i].image + '" alt="option">';
+      } else {
+        rightContent += '<div class="no-image" style="height:100px;">无图</div>';
+      }
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
+  }
+
+  el.innerHTML = '<div class="practice-score">第 ' + (practiceState.current + 1) + ' / ' + practiceState.questions.length + ' 题 &nbsp;|&nbsp; 正确: ' + practiceState.correct + ' / ' + practiceState.total + '</div>' +
+    '<div class="question-area"><div class="question-left">' + leftContent + '</div><div class="question-right">' + rightContent + '</div></div>' +
+    '<div class="practice-controls" id="practiceControls"></div>';
+}
+
+function checkPracticeAnswer(optIdx, selectedId) {
+  var q = practiceState.questions[practiceState.current];
+  var correct = selectedId === q.product.id;
+  practiceState.total++;
+
+  var items = document.querySelectorAll('.option-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].style.pointerEvents = 'none';
+    if (q.options[i].id === q.product.id) {
+      items[i].classList.add('correct');
+    } else if (i === optIdx && !correct) {
+      items[i].classList.add('wrong');
+    }
+  }
+
+  if (correct) {
+    practiceState.correct++;
+  } else {
+    addWrongAnswer(q);
+  }
+
+  document.getElementById('practiceControls').innerHTML =
+    '<button class="next-btn" onclick="nextPracticeQuestion()">下一题</button>';
+}
+
+function nextPracticeQuestion() {
+  practiceState.current++;
+  showPracticeQuestion();
+}
+
+function showPracticeResult() {
+  var el = document.getElementById('practiceContent');
+  var rate = practiceState.total > 0 ? Math.round(practiceState.correct / practiceState.total * 100) : 0;
+  el.innerHTML = '<div class="practice-setup">' +
+    '<h3>练习结束！</h3>' +
+    '<p style="font-size:18px;margin:20px 0;">正确率: ' + rate + '% (' + practiceState.correct + ' / ' + practiceState.total + ')</p>' +
+    '<button class="start-btn" onclick="renderPracticeSetup()">返回选择</button>' +
+    '</div>';
+}
+
+// Wrong answer stub (will be completed in Task 6)
+function addWrongAnswer(question) {
+  var wrong = JSON.parse(localStorage.getItem('wrongAnswers') || '[]');
+  var existing = null;
+  for (var i = 0; i < wrong.length; i++) {
+    if (wrong[i].productId === question.product.id && wrong[i].type === question.type) {
+      existing = wrong[i];
+      break;
+    }
+  }
+  if (existing) {
+    existing.count++;
+  } else {
+    wrong.push({
+      productId: question.product.id,
+      type: question.type,
+      product: question.product,
+      count: 1
+    });
+  }
+  localStorage.setItem('wrongAnswers', JSON.stringify(wrong));
+}
+
+// Exam mode
+var examState = { questions: [], current: 0, answers: [], startTime: null, finished: false };
+
+function renderExamSetup() {
+  var el = document.getElementById('examContent');
+  var products = getProducts();
+  if (products.length < 2) {
+    el.innerHTML = '<div style="text-align:center;color:#999;padding:60px;">产品不足2个，无法进行考试。请先在后台添加产品。</div>';
+    return;
+  }
+  var questionCount = Math.min(100, products.length * 2);
+  el.innerHTML = '<div class="exam-setup">' +
+    '<p style="margin-bottom:12px;color:#666;">模拟考试将从所有产品中随机抽取题目</p>' +
+    '<p style="margin-bottom:20px;color:#999;">共 ' + questionCount + ' 题，每题 1 分，满分 ' + questionCount + ' 分</p>' +
+    '<button class="start-btn" onclick="startExam()">开始考试</button>' +
+    '</div>';
+}
+
+function startExam() {
+  var products = getProducts();
+  if (products.length < 2) {
+    alert('产品不足，无法开始考试');
+    return;
+  }
+  var allQuestions = generateQuestions(products);
+  examState = {
+    questions: shuffleArray(allQuestions).slice(0, 100),
+    current: 0,
+    answers: [],
+    startTime: Date.now(),
+    finished: false
+  };
+  showExamQuestion();
+}
+
+function showExamQuestion() {
+  var el = document.getElementById('examContent');
+  var q = examState.questions[examState.current];
+  if (!q) { finishExam(); return; }
+
+  var leftContent, rightContent;
+  if (q.type === 'img-to-model') {
+    if (q.product.image) {
+      leftContent = '<img src="' + q.product.image + '" alt="' + q.product.model + '">';
+    } else {
+      leftContent = '<div class="no-image" style="height:300px;">' + q.product.model + '</div>';
+    }
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="selectExamAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
+  } else {
+    leftContent = '<div class="model-display">' + q.product.model + '</div>';
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="selectExamAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      if (q.options[i].image) {
+        rightContent += '<img src="' + q.options[i].image + '" alt="option">';
+      } else {
+        rightContent += '<div class="no-image" style="height:100px;">无图</div>';
+      }
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
+  }
+
+  el.innerHTML = '<div class="exam-progress"><span class="progress-text">第 ' + (examState.current + 1) + ' / ' + examState.questions.length + ' 题</span></div>' +
+    '<div class="question-area"><div class="question-left">' + leftContent + '</div><div class="question-right">' + rightContent + '</div></div>';
+}
+
+function selectExamAnswer(optIdx, selectedId) {
+  var q = examState.questions[examState.current];
+  var correct = selectedId === q.product.id;
+  examState.answers.push({ questionIndex: examState.current, selectedId: selectedId, correct: correct });
+
+  if (!correct) {
+    addWrongAnswer(q);
+  }
+
+  // Auto advance after brief delay
+  examState.current++;
+  showExamQuestion();
+}
+
+function finishExam() {
+  examState.finished = true;
+  var correctCount = 0;
+  for (var i = 0; i < examState.answers.length; i++) {
+    if (examState.answers[i].correct) correctCount++;
+  }
+  var total = examState.questions.length;
+  var elapsed = Math.round((Date.now() - examState.startTime) / 1000);
+  var mins = Math.floor(elapsed / 60);
+  var secs = elapsed % 60;
+
+  var reviewHtml = '<h3>答题详情</h3>';
+  for (var i = 0; i < examState.answers.length; i++) {
+    var a = examState.answers[i];
+    var q = examState.questions[a.questionIndex];
+    var cls = a.correct ? 'correct' : 'wrong';
+    var typeLabel = q.type === 'img-to-model' ? '看图选型号' : '看型号选图片';
+    var mark = a.correct ? '<span style="color:#4caf50;"> &#10003;</span>' : '<span style="color:#f44336;"> &#215;</span>';
+    reviewHtml += '<div class="review-item ' + cls + '"><strong>第' + (i + 1) + '题</strong> &nbsp; ' + typeLabel + ' &nbsp; 正确答案: <strong>' + q.product.model + '</strong>' + mark + '</div>';
+  }
+
+  document.getElementById('examContent').innerHTML =
+    '<div class="exam-result">' +
+    '<div class="score-big">' + correctCount + '</div>' +
+    '<div class="score-label">满分 ' + total + ' 分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒</div>' +
+    '<button class="start-btn" onclick="renderExamSetup()" style="background:#1a73e8;">返回</button>' +
+    '</div>' +
+    '<div class="exam-review">' + reviewHtml + '</div>';
+}
+
+// Wrong answer collection
+function getWrongAnswers() {
+  return JSON.parse(localStorage.getItem('wrongAnswers') || '[]');
+}
+
+function clearWrongAnswers() {
+  localStorage.removeItem('wrongAnswers');
+  renderWrongPage();
+}
+
+function removeWrongAnswer(productId, type) {
+  var wrong = getWrongAnswers();
+  var filtered = [];
+  for (var i = 0; i < wrong.length; i++) {
+    if (!(wrong[i].productId === productId && wrong[i].type === type)) {
+      filtered.push(wrong[i]);
+    }
+  }
+  localStorage.setItem('wrongAnswers', JSON.stringify(filtered));
+  renderWrongPage();
+}
+
+function renderWrongPage() {
+  var el = document.getElementById('wrongContent');
+  var wrong = getWrongAnswers();
+  if (wrong.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:#999;padding:60px;">暂无错题，继续加油！</div>';
+    return;
+  }
+
+  var html = '<div style="margin-bottom:20px;">' +
+    '<button onclick="practiceWrongAnswers()" style="padding:10px 24px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-right:12px;">重新练习错题</button>' +
+    '<button onclick="if(confirm(\'确定清空所有错题？\'))clearWrongAnswers()" style="padding:10px 24px;background:#fff;color:#f44336;border:1px solid #f44336;border-radius:8px;cursor:pointer;">清空错题集</button>' +
+    '</div>';
+
+  html += '<div class="product-grid">';
+  for (var i = 0; i < wrong.length; i++) {
+    var w = wrong[i];
+    var typeLabel = w.type === 'img-to-model' ? '看图选型号' : '看型号选图片';
+    html += '<div class="product-card">';
+    if (w.product.image) {
+      html += '<img class="card-img" src="' + w.product.image + '" alt="' + w.product.model + '">';
+    } else {
+      html += '<div class="no-image">暂无图片</div>';
+    }
+    html += '<div class="card-body">';
+    html += '<div class="card-model">' + w.product.model + '</div>';
+    html += '<div class="card-name">' + typeLabel + '</div>';
+    html += '<div style="color:#f44336;font-size:13px;">错误次数: ' + w.count + '</div>';
+    html += '<button onclick="removeWrongAnswer(\'' + w.productId + '\',\'' + w.type + '\')" style="margin-top:8px;padding:4px 12px;background:none;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px;">移除</button>';
+    html += '</div></div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function practiceWrongAnswers() {
+  var wrong = getWrongAnswers();
+  if (wrong.length < 2) { alert('错题不足2道，无法练习'); return; }
+  var allProducts = getProducts();
+  var questions = [];
+  for (var i = 0; i < wrong.length; i++) {
+    var w = wrong[i];
+    var fieldType = w.type === 'img-to-model' ? 'model' : 'image';
+    questions.push({
+      type: w.type,
+      product: w.product,
+      options: pickDistractors(w.product, allProducts, fieldType)
+    });
+  }
+  practiceState = {
+    series: 'wrong',
+    questions: questions,
+    current: 0,
+    correct: 0,
+    total: 0
+  };
+  // Switch to practice page
+  showPage('practice');
+  showPracticeQuestion();
+}
+
+        // Admin panel
+        var adminLoggedIn = false;
+
+        function showAdminLogin() {
+          if (adminLoggedIn) {
+            renderAdminPanel();
+            showPage('admin');
+            return;
+          }
+          // Hide all pages, show admin
+          var pages = document.querySelectorAll('.page');
+          for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
+          document.getElementById('page-admin').classList.add('active');
+          // Deactivate all nav links
+          var navLinks = document.querySelectorAll('.navbar-links a');
+          for (var i = 0; i < navLinks.length; i++) navLinks[i].classList.remove('active');
+
+          document.getElementById('adminContent').innerHTML =
+            '<div class="admin-login">' +
+            '<h3 style="margin-bottom:20px;">请输入管理密码</h3>' +
+            '<input type="password" id="adminPwd" placeholder="密码" onkeydown="if(event.keyCode===13)doAdminLogin()">' +
+            '<button onclick="doAdminLogin()">进入后台</button>' +
+            '</div>';
+        }
+
+        function doAdminLogin() {
+          var pwd = document.getElementById('adminPwd').value;
+          if (pwd === '123456') {
+            adminLoggedIn = true;
+            renderAdminPanel();
+          } else {
+            alert('密码错误');
+          }
+        }
+
+        function renderAdminPanel() {
+          var el = document.getElementById('adminContent');
+          var products = getProducts();
+
+          var rows = '';
+          for (var i = 0; i < products.length; i++) {
+            var p = products[i];
+            var seriesLabel = '';
+            for (var j = 0; j < SERIES.length; j++) {
+              if (SERIES[j].id === p.series) { seriesLabel = SERIES[j].label.split(' ')[0]; break; }
+            }
+            var imgHtml = p.image ? '<img src="' + p.image + '" style="width:50px;height:50px;object-fit:contain;">' : '-';
+            var params = p.parameters || '-';
+            if (params.length > 30) params = params.substring(0, 30) + '...';
+            var funcs = p.functions || '-';
+            if (funcs.length > 30) funcs = funcs.substring(0, 30) + '...';
+
+            rows += '<tr>';
+            rows += '<td>' + imgHtml + '</td>';
+            rows += '<td><strong>' + p.model + '</strong></td>';
+            rows += '<td>' + p.name + '</td>';
+            rows += '<td>' + seriesLabel + '</td>';
+            rows += '<td title="' + (p.parameters || '') + '">' + params + '</td>';
+            rows += '<td title="' + (p.functions || '') + '">' + funcs + '</td>';
+            rows += '<td><button class="btn-edit" onclick="editProduct(\'' + p.id + '\')">编辑</button>';
+            rows += '<button class="btn-delete" onclick="if(confirm(\'确定删除？\')){deleteProduct(\'' + p.id + '\');renderAdminPanel();}">删除</button></td>';
+            rows += '</tr>';
+          }
+
+          el.innerHTML =
+            '<div class="admin-toolbar">' +
+            '<span style="color:#666;">共 ' + products.length + ' 个产品</span>' +
+            '<div>' +
+            '<button class="add-btn" onclick="showAddProduct()" style="margin-right:8px;">+ 添加产品</button>' +
+            '<button class="reset-btn" onclick="if(confirm(\'重置为默认数据？\')){resetProducts();renderAdminPanel();}">重置数据</button>' +
+            '</div></div>' +
+            '<table class="admin-table">' +
+            '<tr><th>图片</th><th>型号</th><th>名称</th><th>系列</th><th>参数</th><th>功能</th><th>操作</th></tr>' +
+            rows + '</table>';
+        }
+
+        function showAddProduct() {
+          showProductModal(null);
+        }
+
+        function editProduct(id) {
+          var products = getProducts();
+          var product = null;
+          for (var i = 0; i < products.length; i++) {
+            if (products[i].id === id) { product = products[i]; break; }
+          }
+          showProductModal(product);
+        }
+
+        function showProductModal(product) {
+          var isEdit = !!product;
+          var seriesOptions = '';
+          for (var i = 0; i < SERIES.length; i++) {
+            var sel = product && product.series === SERIES[i].id ? ' selected' : '';
+            seriesOptions += '<option value="' + SERIES[i].id + '"' + sel + '>' + SERIES[i].label + '</option>';
+          }
+
+          document.getElementById('modalContent').innerHTML =
+            '<h3>' + (isEdit ? '编辑产品' : '添加产品') + '</h3>' +
+            '<label>型号 Model *</label>' +
+            '<input type="text" id="m_model" value="' + (product ? product.model : '') + '" placeholder="如 EOA-101-CMP">' +
+            '<label>产品名称 *</label>' +
+            '<input type="text" id="m_name" value="' + (product ? product.name : '') + '" placeholder="如 10盘万能蒸烤箱">' +
+            '<label>英文名称</label>' +
+            '<input type="text" id="m_nameEn" value="' + (product ? (product.nameEn || '') : '') + '" placeholder="如 10-Pan Combi Oven">' +
+            '<label>所属系列 *</label>' +
+            '<select id="m_series">' + seriesOptions + '</select>' +
+            '<label>产品图片</label>' +
+            '<input type="text" id="m_image" value="' + (product ? (product.image || '') : '') + '" placeholder="图片URL 或 base64数据">' +
+            '<input type="file" id="m_imageFile" accept="image/*" onchange="handleImageUpload(this)" style="margin-top:8px;font-size:12px;">' +
+            '<label>产品参数 / Product Parameters</label>' +
+            '<textarea id="m_params" placeholder="如 10x1/1GN / 18kW / 380V">' + (product ? (product.parameters || '') : '') + '</textarea>' +
+            '<label>英文参数 / Parameters (EN)</label>' +
+            '<textarea id="m_paramsEn" placeholder="如 10x 1/1 GN / 18kW / 380V">' + (product ? (product.parametersEn || '') : '') + '</textarea>' +
+            '<label>功能描述 / Functions & Applications</label>' +
+            '<textarea id="m_functions" placeholder="如 热风烘烤、蒸煮、组合烹饪">' + (product ? (product.functions || '') : '') + '</textarea>' +
+            '<button class="ai-generate-btn" onclick="aiGenerateFunctions()">AI 提炼功能</button>' +
+            '<div class="modal-actions">' +
+            '<button class="btn-cancel" onclick="closeModal()">取消</button>' +
+            '<button class="btn-save" onclick="saveProductForm(\'' + (product ? product.id : '') + '\')">保存</button>' +
+            '</div>';
+          document.getElementById('modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+          document.getElementById('modal').style.display = 'none';
+        }
+
+        function handleImageUpload(input) {
+          var file = input.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            document.getElementById('m_image').value = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        function saveProductForm(id) {
+          var model = document.getElementById('m_model').value.trim();
+          var name = document.getElementById('m_name').value.trim();
+          var series = document.getElementById('m_series').value;
+          if (!model || !name) { alert('型号和名称不能为空'); return; }
+
+          var data = {
+            model: model,
+            name: name,
+            nameEn: document.getElementById('m_nameEn').value.trim(),
+            series: series,
+            image: document.getElementById('m_image').value.trim(),
+            parameters: document.getElementById('m_params').value.trim(),
+            parametersEn: document.getElementById('m_paramsEn').value.trim(),
+            functions: document.getElementById('m_functions').value.trim()
+          };
+
+          if (id) {
+            updateProduct(id, data);
+          } else {
+            addProduct(data);
+          }
+          closeModal();
+          renderAdminPanel();
+        }
+
+        function aiGenerateFunctions() {
+          var series = document.getElementById('m_series').value;
+          var params = document.getElementById('m_params').value.trim();
+
+          var functionMap = {
+            'combi-steamer': '热风烘烤、蒸煮、组合烹饪、低温慢煮、解冻、自动清洗程序、多段编程烹饪',
+            'combination-oven': '对流烘烤、蒸汽烹饪、组合模式、发酵、解冻、余热利用',
+            'chicken-rotisserie': '360旋转均匀烘烤、独立温控、透明玻璃展示、自动计时、照明系统',
+            'electric-fryer': '精准温控(50-190°C)、油温快速恢复、超温安全断电、可拆卸清洗、油位指示',
+            'gas-fryer': '大火力快速升温、电子脉冲点火、熄火安全保护、油温恒定控制、铸铁炉头',
+            'griddle': '大面积均匀加热、独立温区控制、前置油脂收集槽、不锈钢一体台面、温控指示灯',
+            'pasta-cooker': '快速沸腾加热、独立定时器、水位自动控制、不锈钢内胆、溢出保护',
+            'western-fastfood': '多工位集成设计、高效出餐、不锈钢台面、易清洁维护、空间紧凑',
+            'coffee-machine': '意式高压萃取(15bar)、蒸汽打奶泡、PID精准温控、预浸泡功能、双杯同时出品',
+            'oven': '多层独立控温、热风循环系统、石板底火加热、蒸汽喷雾、大容量烘烤',
+            'supermarket': '快速加热复热、多段编程、除霜烘烤一体、恒温展示保温、紧凑设计适合便利店',
+            'snack': '均匀加热成型、不粘涂层易脱模、独立温控、定时功能、商用级耐久',
+            'induction': '大功率快速加热、多档火力精准调节、定时功能、过热自动保护、防水易清洁面板'
+          };
+
+          var func = functionMap[series] || '高效节能、安全可靠、操作简便、不锈钢材质';
+
+          if (params.indexOf('380V') !== -1) func += '、三相电工业级';
+          if (params.indexOf('220V') !== -1) func += '、单相电通用';
+          if (params.indexOf('GN') !== -1 || params.indexOf('盘') !== -1) func += '、标准GN烤盘兼容';
+          if (params.indexOf('NG') !== -1 || params.indexOf('LPG') !== -1) func += '、天然气/液化气双兼容';
+
+          document.getElementById('m_functions').value = func;
+        }
+
+        // Close modal on outside click
+        (function() {
+          var modal = document.getElementById('modal');
+          if (modal) {
+            modal.addEventListener('click', function(e) {
+              if (e.target === this) closeModal();
+            });
+          }
+        })();
+
+        renderFilterBar();
+        renderProductGrid();
+        renderPracticeSetup();
+        renderExamSetup();
+        renderWrongPage();
+    </script>
+
+</body>
+</html>
