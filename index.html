@@ -603,6 +603,7 @@
             <a id="nav-practice" onclick="showPage('practice')">刷题练习</a>
             <a id="nav-exam" onclick="showPage('exam')">模拟考试</a>
             <a id="nav-wrong" onclick="showPage('wrong')">错题集</a>
+            <a id="nav-scores" onclick="showPage('scores')">分数查询</a>
         </div>
         <button class="navbar-admin" onclick="showAdminLogin()">管理</button>
     </nav>
@@ -626,6 +627,11 @@
     <div id="page-wrong" class="page">
         <h2 class="page-title">错题集</h2>
         <div id="wrongContent"></div>
+    </div>
+
+    <div id="page-scores" class="page">
+        <h2 class="page-title">分数查询</h2>
+        <div id="scoresContent"></div>
     </div>
 
     <div id="page-admin" class="page">
@@ -949,7 +955,7 @@
             // Merge batch-imported images
             if (typeof IMAGE_DATA !== 'undefined') {
                 for (var i = 0; i < products.length; i++) {
-                    if (!products[i].image && IMAGE_DATA[products[i].model]) {
+                    if (!getProductImage(products[i]) && IMAGE_DATA[products[i].model]) {
                         products[i].image = IMAGE_DATA[products[i].model];
                     }
                 }
@@ -963,6 +969,33 @@
 
         function resetProducts() {
             localStorage.removeItem('products');
+        }
+
+        function getProductImage(product) {
+            if (product.images && product.images.length > 0 && product.images[0]) return product.images[0];
+            if (product.image) return product.image;
+            return '';
+        }
+
+        function getReportedQuestions() {
+            return JSON.parse(localStorage.getItem('reportedQuestions') || '[]');
+        }
+
+        function reportQuestion(productId, type) {
+            var reported = getReportedQuestions();
+            var key = productId + '|' + type;
+            if (reported.indexOf(key) === -1) {
+                reported.push(key);
+                localStorage.setItem('reportedQuestions', JSON.stringify(reported));
+            }
+            if (typeof practiceState !== 'undefined' && practiceState.questions.length > 0) {
+                nextPracticeQuestion();
+            }
+        }
+
+        function isQuestionReported(productId, type) {
+            var reported = getReportedQuestions();
+            return reported.indexOf(productId + '|' + type) !== -1;
         }
 
         function addProduct(product) {
@@ -1030,9 +1063,10 @@
             var html = '';
             for (var i = 0; i < filtered.length; i++) {
                 var p = filtered[i];
+                var img = getProductImage(p);
                 html += '<div class="product-card">';
-                if (p.image) {
-                    html += '<img class="card-img" src="' + p.image + '" alt="' + p.model + '">';
+                if (img) {
+                    html += '<img class="card-img" src="' + img + '" alt="' + p.model + '">';
                 } else {
                     html += '<div class="no-image">暂无图片</div>';
                 }
@@ -1076,6 +1110,10 @@
             if (nav) {
                 nav.classList.add('active');
             }
+
+            // Re-render page content when switching to it
+            if (name === 'wrong') renderWrongPage();
+            if (name === 'scores') renderScoresPage();
         }
 
         // Practice mode
@@ -1123,8 +1161,22 @@ function generateQuestions(products) {
     var p = products[i];
     questions.push({ type: 'img-to-model', product: p, options: pickDistractors(p, products, 'model') });
     questions.push({ type: 'model-to-img', product: p, options: pickDistractors(p, products, 'image') });
+    // voltage-to-model
+    var voltageMatch = (p.parameters || '').match(/(\d+V)/);
+    if (voltageMatch) {
+      questions.push({ type: 'voltage-to-model', product: p, voltage: voltageMatch[1], options: pickDistractors(p, products, 'model') });
+    }
+    // name-to-model
+    questions.push({ type: 'name-to-model', product: p, options: pickDistractors(p, products, 'model') });
   }
-  return shuffleArray(questions);
+  // Filter out reported questions
+  var filtered = [];
+  for (var i = 0; i < questions.length; i++) {
+    if (!isQuestionReported(questions[i].product.id, questions[i].type)) {
+      filtered.push(questions[i]);
+    }
+  }
+  return shuffleArray(filtered);
 }
 
 function pickDistractors(correct, pool, field) {
@@ -1159,8 +1211,9 @@ function showPracticeQuestion() {
 
   var leftContent, rightContent;
   if (q.type === 'img-to-model') {
-    if (q.product.image) {
-      leftContent = '<img src="' + q.product.image + '" alt="' + q.product.model + '">';
+    var img = getProductImage(q.product);
+    if (img) {
+      leftContent = '<img src="' + img + '" alt="' + q.product.model + '">';
     } else {
       leftContent = '<div class="no-image" style="height:300px;">' + q.product.model + '</div>';
     }
@@ -1170,7 +1223,7 @@ function showPracticeQuestion() {
       rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
     }
     rightContent += '</div>';
-  } else {
+  } else if (q.type === 'model-to-img') {
     leftContent = '<div class="model-display">' + q.product.model + '</div>';
     rightContent = '<div class="option-grid">';
     for (var i = 0; i < q.options.length; i++) {
@@ -1183,10 +1236,27 @@ function showPracticeQuestion() {
       rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
     }
     rightContent += '</div>';
+  } else if (q.type === 'voltage-to-model') {
+    leftContent = '<div class="model-display" style="color:#e65100;">' + (q.voltage || 'N/A') + '</div>';
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="checkPracticeAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
+  } else if (q.type === 'name-to-model') {
+    leftContent = '<div class="model-display" style="font-size:22px;">' + q.product.name + '</div>';
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="checkPracticeAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
   }
 
   el.innerHTML = '<div class="practice-score">第 ' + (practiceState.current + 1) + ' / ' + practiceState.questions.length + ' 题 &nbsp;|&nbsp; 正确: ' + practiceState.correct + ' / ' + practiceState.total + '</div>' +
     '<div class="question-area"><div class="question-left">' + leftContent + '</div><div class="question-right">' + rightContent + '</div></div>' +
+    '<button onclick="reportQuestion(\'' + q.product.id + '\',\'' + q.type + '\')" style="margin-top:12px;padding:6px 16px;background:#fff;color:#999;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px;"> 此题有误，跳过</button>' +
     '<div class="practice-controls" id="practiceControls"></div>';
 }
 
@@ -1263,10 +1333,9 @@ function renderExamSetup() {
     el.innerHTML = '<div style="text-align:center;color:#999;padding:60px;">产品不足2个，无法进行考试。请先在后台添加产品。</div>';
     return;
   }
-  var questionCount = Math.min(100, products.length * 2);
   el.innerHTML = '<div class="exam-setup">' +
     '<p style="margin-bottom:12px;color:#666;">模拟考试将从所有产品中随机抽取题目</p>' +
-    '<p style="margin-bottom:20px;color:#999;">共 ' + questionCount + ' 题，每题 1 分，满分 ' + questionCount + ' 分</p>' +
+    '<p style="margin-bottom:20px;color:#999;">50题，每题2分，满分100分</p>' +
     '<button class="start-btn" onclick="startExam()">开始考试</button>' +
     '</div>';
 }
@@ -1279,7 +1348,7 @@ function startExam() {
   }
   var allQuestions = generateQuestions(products);
   examState = {
-    questions: shuffleArray(allQuestions).slice(0, 100),
+    questions: shuffleArray(allQuestions).slice(0, 50),
     current: 0,
     answers: [],
     startTime: Date.now(),
@@ -1295,8 +1364,9 @@ function showExamQuestion() {
 
   var leftContent, rightContent;
   if (q.type === 'img-to-model') {
-    if (q.product.image) {
-      leftContent = '<img src="' + q.product.image + '" alt="' + q.product.model + '">';
+    var img = getProductImage(q.product);
+    if (img) {
+      leftContent = '<img src="' + img + '" alt="' + q.product.model + '">';
     } else {
       leftContent = '<div class="no-image" style="height:300px;">' + q.product.model + '</div>';
     }
@@ -1306,7 +1376,7 @@ function showExamQuestion() {
       rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
     }
     rightContent += '</div>';
-  } else {
+  } else if (q.type === 'model-to-img') {
     leftContent = '<div class="model-display">' + q.product.model + '</div>';
     rightContent = '<div class="option-grid">';
     for (var i = 0; i < q.options.length; i++) {
@@ -1319,10 +1389,27 @@ function showExamQuestion() {
       rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
     }
     rightContent += '</div>';
+  } else if (q.type === 'voltage-to-model') {
+    leftContent = '<div class="model-display" style="color:#e65100;">' + (q.voltage || 'N/A') + '</div>';
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="selectExamAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
+  } else if (q.type === 'name-to-model') {
+    leftContent = '<div class="model-display" style="font-size:22px;">' + q.product.name + '</div>';
+    rightContent = '<div class="option-grid">';
+    for (var i = 0; i < q.options.length; i++) {
+      rightContent += '<div class="option-item" onclick="selectExamAnswer(' + i + ', \'' + q.options[i].id + '\')">';
+      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+    }
+    rightContent += '</div>';
   }
 
   el.innerHTML = '<div class="exam-progress"><span class="progress-text">第 ' + (examState.current + 1) + ' / ' + examState.questions.length + ' 题</span></div>' +
-    '<div class="question-area"><div class="question-left">' + leftContent + '</div><div class="question-right">' + rightContent + '</div></div>';
+    '<div class="question-area"><div class="question-left">' + leftContent + '</div><div class="question-right">' + rightContent + '</div></div>' +
+    '<button onclick="reportQuestion(\'' + q.product.id + '\',\'' + q.type + '\')" style="margin-top:12px;padding:6px 16px;background:#fff;color:#999;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px;"> 此题有误，跳过</button>';
 }
 
 function selectExamAnswer(optIdx, selectedId) {
@@ -1334,9 +1421,22 @@ function selectExamAnswer(optIdx, selectedId) {
     addWrongAnswer(q);
   }
 
-  // Auto advance after brief delay
-  examState.current++;
-  showExamQuestion();
+  // Show feedback
+  var items = document.querySelectorAll('.option-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].style.pointerEvents = 'none';
+    if (q.options[i].id === q.product.id) {
+      items[i].classList.add('correct');
+    } else if (i === optIdx && !correct) {
+      items[i].classList.add('wrong');
+    }
+  }
+
+  // Auto advance after 1 second delay
+  setTimeout(function() {
+    examState.current++;
+    showExamQuestion();
+  }, 1000);
 }
 
 function finishExam() {
@@ -1346,24 +1446,38 @@ function finishExam() {
     if (examState.answers[i].correct) correctCount++;
   }
   var total = examState.questions.length;
+  var score = correctCount * 2;
   var elapsed = Math.round((Date.now() - examState.startTime) / 1000);
   var mins = Math.floor(elapsed / 60);
   var secs = elapsed % 60;
+
+  // Save score
+  saveExamScore(score, total, correctCount);
+
+  // Refresh wrong answers tab
+  renderWrongPage();
+
+  var typeLabels = {
+    'img-to-model': '看图选型号',
+    'model-to-img': '看型号选图片',
+    'voltage-to-model': '看电压选型号',
+    'name-to-model': '看名称选型号'
+  };
 
   var reviewHtml = '<h3>答题详情</h3>';
   for (var i = 0; i < examState.answers.length; i++) {
     var a = examState.answers[i];
     var q = examState.questions[a.questionIndex];
     var cls = a.correct ? 'correct' : 'wrong';
-    var typeLabel = q.type === 'img-to-model' ? '看图选型号' : '看型号选图片';
+    var typeLabel = typeLabels[q.type] || q.type;
     var mark = a.correct ? '<span style="color:#4caf50;"> &#10003;</span>' : '<span style="color:#f44336;"> &#215;</span>';
     reviewHtml += '<div class="review-item ' + cls + '"><strong>第' + (i + 1) + '题</strong> &nbsp; ' + typeLabel + ' &nbsp; 正确答案: <strong>' + q.product.model + '</strong>' + mark + '</div>';
   }
 
   document.getElementById('examContent').innerHTML =
     '<div class="exam-result">' +
-    '<div class="score-big">' + correctCount + '</div>' +
-    '<div class="score-label">满分 ' + total + ' 分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒</div>' +
+    '<div class="score-big">' + score + '分</div>' +
+    '<div class="score-label">满分100分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒</div>' +
     '<button class="start-btn" onclick="renderExamSetup()" style="background:#1a73e8;">返回</button>' +
     '</div>' +
     '<div class="exam-review">' + reviewHtml + '</div>';
@@ -1393,11 +1507,19 @@ function removeWrongAnswer(productId, type) {
 
 function renderWrongPage() {
   var el = document.getElementById('wrongContent');
+  if (!el) return;
   var wrong = getWrongAnswers();
   if (wrong.length === 0) {
     el.innerHTML = '<div style="text-align:center;color:#999;padding:60px;">暂无错题，继续加油！</div>';
     return;
   }
+
+  var typeLabels = {
+    'img-to-model': '看图选型号',
+    'model-to-img': '看型号选图片',
+    'voltage-to-model': '看电压选型号',
+    'name-to-model': '看名称选型号'
+  };
 
   var html = '<div style="margin-bottom:20px;">' +
     '<button onclick="practiceWrongAnswers()" style="padding:10px 24px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-right:12px;">重新练习错题</button>' +
@@ -1407,10 +1529,11 @@ function renderWrongPage() {
   html += '<div class="product-grid">';
   for (var i = 0; i < wrong.length; i++) {
     var w = wrong[i];
-    var typeLabel = w.type === 'img-to-model' ? '看图选型号' : '看型号选图片';
+    var typeLabel = typeLabels[w.type] || w.type;
+    var img = getProductImage(w.product);
     html += '<div class="product-card">';
-    if (w.product.image) {
-      html += '<img class="card-img" src="' + w.product.image + '" alt="' + w.product.model + '">';
+    if (img) {
+      html += '<img class="card-img" src="' + img + '" alt="' + w.product.model + '">';
     } else {
       html += '<div class="no-image">暂无图片</div>';
     }
@@ -1432,7 +1555,7 @@ function practiceWrongAnswers() {
   var questions = [];
   for (var i = 0; i < wrong.length; i++) {
     var w = wrong[i];
-    var fieldType = w.type === 'img-to-model' ? 'model' : 'image';
+    var fieldType = w.type === 'model-to-img' ? 'image' : 'model';
     questions.push({
       type: w.type,
       product: w.product,
@@ -1449,6 +1572,48 @@ function practiceWrongAnswers() {
   // Switch to practice page
   showPage('practice');
   showPracticeQuestion();
+}
+
+// Score query
+function getExamScores() {
+  return JSON.parse(localStorage.getItem('examScores') || '[]');
+}
+
+function saveExamScore(score, total, correctCount) {
+  var scores = getExamScores();
+  scores.unshift({
+    score: score,
+    total: total,
+    correctCount: correctCount,
+    date: new Date().toLocaleString('zh-CN'),
+    questionCount: total
+  });
+  if (scores.length > 10) scores = scores.slice(0, 10);
+  localStorage.setItem('examScores', JSON.stringify(scores));
+}
+
+function clearExamScores() {
+  localStorage.removeItem('examScores');
+  renderScoresPage();
+}
+
+function renderScoresPage() {
+  var el = document.getElementById('scoresContent');
+  if (!el) return;
+  var scores = getExamScores();
+  if (scores.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:#999;padding:60px;">暂无考试记录</div>';
+    return;
+  }
+  var html = '<div style="margin-bottom:20px;"><button onclick="if(confirm(\'确定清空所有记录？\'))clearExamScores()" style="padding:10px 24px;background:#fff;color:#f44336;border:1px solid #f44336;border-radius:8px;cursor:pointer;">清空记录</button></div>';
+  html += '<table class="admin-table"><tr><th>序号</th><th>日期</th><th>题数</th><th>正确</th><th>得分</th></tr>';
+  for (var i = 0; i < scores.length; i++) {
+    var s = scores[i];
+    var color = s.score >= 80 ? '#4caf50' : s.score >= 60 ? '#ff9800' : '#f44336';
+    html += '<tr><td>' + (i + 1) + '</td><td>' + s.date + '</td><td>' + s.questionCount + '</td><td>' + s.correctCount + '</td><td style="color:' + color + ';font-weight:700;">' + s.score + '分</td></tr>';
+  }
+  html += '</table>';
+  el.innerHTML = html;
 }
 
         // Admin panel
@@ -1497,7 +1662,8 @@ function practiceWrongAnswers() {
             for (var j = 0; j < SERIES.length; j++) {
               if (SERIES[j].id === p.series) { seriesLabel = SERIES[j].label.split(' ')[0]; break; }
             }
-            var imgHtml = p.image ? '<img src="' + p.image + '" style="width:50px;height:50px;object-fit:contain;">' : '-';
+            var imgVal = getProductImage(p);
+            var imgHtml = imgVal ? '<img src="' + imgVal + '" style="width:50px;height:50px;object-fit:contain;">' : '-';
             var params = p.parameters || '-';
             if (params.length > 30) params = params.substring(0, 30) + '...';
             var funcs = p.functions || '-';
@@ -1520,6 +1686,9 @@ function practiceWrongAnswers() {
             '<span style="color:#666;">共 ' + products.length + ' 个产品</span>' +
             '<div>' +
             '<button class="add-btn" onclick="showAddProduct()" style="margin-right:8px;">+ 添加产品</button>' +
+            '<button class="reset-btn" onclick="document.getElementById(\'csvImport\').click()" style="margin-right:8px;">批量导入CSV</button>' +
+            '<input type="file" id="csvImport" accept=".csv" onchange="importCSV(this)" style="display:none;">' +
+            '<button class="reset-btn" onclick="exportCSV()" style="margin-right:8px;">导出CSV</button>' +
             '<button class="reset-btn" onclick="if(confirm(\'重置为默认数据？\')){resetProducts();renderAdminPanel();}">重置数据</button>' +
             '</div></div>' +
             '<table class="admin-table">' +
@@ -1548,6 +1717,19 @@ function practiceWrongAnswers() {
             seriesOptions += '<option value="' + SERIES[i].id + '"' + sel + '>' + SERIES[i].label + '</option>';
           }
 
+          // Build existing images list
+          var existingImages = [];
+          if (product && product.images && product.images.length > 0) {
+            existingImages = product.images;
+          } else if (product && product.image) {
+            existingImages = [product.image];
+          }
+
+          var imageFieldsHtml = '';
+          for (var i = 0; i < Math.max(1, existingImages.length); i++) {
+            imageFieldsHtml += buildImageFieldHtml(i, existingImages[i] || '');
+          }
+
           document.getElementById('modalContent').innerHTML =
             '<h3>' + (isEdit ? '编辑产品' : '添加产品') + '</h3>' +
             '<label>型号 Model *</label>' +
@@ -1558,9 +1740,9 @@ function practiceWrongAnswers() {
             '<input type="text" id="m_nameEn" value="' + (product ? (product.nameEn || '') : '') + '" placeholder="如 10-Pan Combi Oven">' +
             '<label>所属系列 *</label>' +
             '<select id="m_series">' + seriesOptions + '</select>' +
-            '<label>产品图片</label>' +
-            '<input type="text" id="m_image" value="' + (product ? (product.image || '') : '') + '" placeholder="图片URL 或 base64数据">' +
-            '<input type="file" id="m_imageFile" accept="image/*" onchange="handleImageUpload(this)" style="margin-top:8px;font-size:12px;">' +
+            '<label>产品图片（最多5张）</label>' +
+            '<div id="imageFields">' + imageFieldsHtml + '</div>' +
+            '<button onclick="addImageField()" style="margin-top:8px;padding:4px 12px;background:#e3f2fd;color:#1a73e8;border:none;border-radius:4px;cursor:pointer;font-size:12px;">+ 添加图片</button>' +
             '<label>产品参数 / Product Parameters</label>' +
             '<textarea id="m_params" placeholder="如 10x1/1GN / 18kW / 380V">' + (product ? (product.parameters || '') : '') + '</textarea>' +
             '<label>英文参数 / Parameters (EN)</label>' +
@@ -1575,16 +1757,49 @@ function practiceWrongAnswers() {
           document.getElementById('modal').style.display = 'flex';
         }
 
+        function buildImageFieldHtml(index, value) {
+          var thumbHtml = '';
+          if (value) {
+            thumbHtml = '<img src="' + value + '" style="width:50px;height:50px;object-fit:contain;margin-top:4px;border-radius:4px;border:1px solid #eee;">';
+          }
+          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;" id="imgField_' + index + '">' +
+            '<input type="text" class="m_image_url" value="' + value.replace(/"/g, '&quot;') + '" placeholder="图片URL 或 base64数据" style="flex:1;">' +
+            '<input type="file" accept="image/*" onchange="handleImageUpload(this,' + index + ')" style="font-size:12px;width:140px;">' +
+            thumbHtml +
+            '</div>';
+        }
+
+        function addImageField() {
+          var container = document.getElementById('imageFields');
+          var count = container.querySelectorAll('.m_image_url').length;
+          if (count >= 5) { alert('最多5张图片'); return; }
+          var div = document.createElement('div');
+          div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+          div.id = 'imgField_new_' + count;
+          div.innerHTML = '<input type="text" class="m_image_url" value="" placeholder="图片URL 或 base64数据" style="flex:1;">' +
+            '<input type="file" accept="image/*" onchange="handleImageUpload(this,\'new_' + count + '\')" style="font-size:12px;width:140px;">';
+          container.appendChild(div);
+        }
+
         function closeModal() {
           document.getElementById('modal').style.display = 'none';
         }
 
-        function handleImageUpload(input) {
+        function handleImageUpload(input, fieldId) {
           var file = input.files[0];
           if (!file) return;
           var reader = new FileReader();
           reader.onload = function(e) {
-            document.getElementById('m_image').value = e.target.result;
+            var field;
+            if (typeof fieldId === 'number') {
+              field = document.getElementById('imgField_' + fieldId);
+            } else {
+              field = document.getElementById('imgField_' + fieldId);
+            }
+            if (field) {
+              var textInput = field.querySelector('.m_image_url');
+              if (textInput) textInput.value = e.target.result;
+            }
           };
           reader.readAsDataURL(file);
         }
@@ -1595,12 +1810,21 @@ function practiceWrongAnswers() {
           var series = document.getElementById('m_series').value;
           if (!model || !name) { alert('型号和名称不能为空'); return; }
 
+          // Collect all image URLs
+          var imageInputs = document.querySelectorAll('.m_image_url');
+          var images = [];
+          for (var i = 0; i < imageInputs.length; i++) {
+            var val = imageInputs[i].value.trim();
+            if (val) images.push(val);
+          }
+
           var data = {
             model: model,
             name: name,
             nameEn: document.getElementById('m_nameEn').value.trim(),
             series: series,
-            image: document.getElementById('m_image').value.trim(),
+            image: images.length > 0 ? images[0] : '',
+            images: images,
             parameters: document.getElementById('m_params').value.trim(),
             parametersEn: document.getElementById('m_paramsEn').value.trim(),
             functions: document.getElementById('m_functions').value.trim()
@@ -1613,6 +1837,119 @@ function practiceWrongAnswers() {
           }
           closeModal();
           renderAdminPanel();
+        }
+
+        // CSV import/export
+        function importCSV(input) {
+          var file = input.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var text = e.target.result;
+            var lines = text.split('\n');
+            if (lines.length < 2) { alert('CSV文件格式错误'); return; }
+
+            // Parse header
+            var header = lines[0].split(',');
+            var colMap = {};
+            for (var i = 0; i < header.length; i++) {
+              var h = header[i].trim().replace(/\r/g, '');
+              if (h.indexOf('型号') !== -1) colMap.model = i;
+              else if (h.indexOf('名称') !== -1 && h.indexOf('中文') !== -1) colMap.name = i;
+              else if (h.indexOf('名称') !== -1 && h.indexOf('英文') !== -1) colMap.nameEn = i;
+              else if (h.indexOf('系列') !== -1) colMap.series = i;
+              else if (h.indexOf('参数') !== -1 && h.indexOf('中文') !== -1) colMap.params = i;
+              else if (h.indexOf('参数') !== -1 && h.indexOf('英文') !== -1) colMap.paramsEn = i;
+              else if (h.indexOf('功能') !== -1) colMap.functions = i;
+            }
+
+            var imported = 0;
+            var products = getProducts();
+
+            for (var li = 1; li < lines.length; li++) {
+              var line = lines[li].trim().replace(/\r/g, '');
+              if (!line) continue;
+
+              // Simple CSV parse (handles quoted fields)
+              var fields = [];
+              var current = '';
+              var inQuotes = false;
+              for (var ci = 0; ci < line.length; ci++) {
+                var ch = line[ci];
+                if (ch === '"') { inQuotes = !inQuotes; }
+                else if (ch === ',' && !inQuotes) { fields.push(current.trim()); current = ''; }
+                else { current += ch; }
+              }
+              fields.push(current.trim());
+
+              var model = colMap.model !== undefined ? fields[colMap.model] : '';
+              if (!model) continue;
+
+              // Check if product already exists (update) or new (add)
+              var existing = null;
+              for (var pi = 0; pi < products.length; pi++) {
+                if (products[pi].model === model) { existing = products[pi]; break; }
+              }
+
+              var seriesVal = colMap.series !== undefined ? fields[colMap.series] : '';
+              // Validate series
+              var validSeries = false;
+              for (var si = 0; si < SERIES.length; si++) {
+                if (SERIES[si].id === seriesVal) { validSeries = true; break; }
+              }
+              if (!validSeries) seriesVal = SERIES[0].id;
+
+              var productData = {
+                model: model,
+                name: colMap.name !== undefined ? fields[colMap.name] : model,
+                nameEn: colMap.nameEn !== undefined ? fields[colMap.nameEn] : '',
+                series: seriesVal,
+                parameters: colMap.params !== undefined ? fields[colMap.params] : '',
+                parametersEn: colMap.paramsEn !== undefined ? fields[colMap.paramsEn] : '',
+                functions: colMap.functions !== undefined ? fields[colMap.functions] : '',
+                images: existing ? (existing.images || []) : [],
+                image: existing ? (existing.image || '') : ''
+              };
+
+              if (existing) {
+                Object.keys(productData).forEach(function(k) {
+                  if (productData[k] || k === 'images' || k === 'image') {
+                    existing[k] = productData[k];
+                  }
+                });
+              } else {
+                productData.id = 'p' + Date.now() + '_' + imported;
+                products.push(productData);
+              }
+              imported++;
+            }
+
+            saveProducts(products);
+            alert('成功导入 ' + imported + ' 个产品！');
+            renderAdminPanel();
+            input.value = '';
+          };
+          reader.readAsText(file, 'UTF-8');
+        }
+
+        function exportCSV() {
+          var products = getProducts();
+          var csv = '﻿型号,产品名称(中文),产品名称(英文),所属系列,产品参数(中文),产品参数(英文),功能描述\n';
+          for (var i = 0; i < products.length; i++) {
+            var p = products[i];
+            csv += '"' + (p.model || '') + '",';
+            csv += '"' + (p.name || '') + '",';
+            csv += '"' + (p.nameEn || '') + '",';
+            csv += '"' + (p.series || '') + '",';
+            csv += '"' + (p.parameters || '').replace(/"/g, '""') + '",';
+            csv += '"' + (p.parametersEn || '').replace(/"/g, '""') + '",';
+            csv += '"' + (p.functions || '').replace(/"/g, '""') + '"\n';
+          }
+          var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = '产品数据_' + new Date().toISOString().slice(0,10) + '.csv';
+          link.click();
         }
 
         function aiGenerateFunctions() {
@@ -1660,6 +1997,7 @@ function practiceWrongAnswers() {
         renderPracticeSetup();
         renderExamSetup();
         renderWrongPage();
+        renderScoresPage();
     </script>
 
 </body>
