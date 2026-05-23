@@ -2081,9 +2081,10 @@ function renderScoresPage() {
                 var mediaFiles = Object.keys(zip.files).filter(function(f) {
                   return f.startsWith('xl/media/') && !zip.files[f].dir;
                 }).sort(function(a, b) {
-                  var na = parseInt(a.match(/image(\d+)/)[1]);
-                  var nb = parseInt(b.match(/image(\d+)/)[1]);
-                  return na - nb;
+                  var ma = a.match(/image(\d+)/);
+                  var mb = b.match(/image(\d+)/);
+                  if (!ma || !mb) return a.localeCompare(b);
+                  return parseInt(ma[1]) - parseInt(mb[1]);
                 });
 
                 // Load all images first
@@ -2100,6 +2101,12 @@ function renderScoresPage() {
                   return f.match(/xl\/drawings\/drawing\d+\.xml/) && !zip.files[f].dir;
                 });
 
+                // Try to parse drawing XML for row mapping
+                var drawingFiles = Object.keys(zip.files).filter(function(f) {
+                  return f.match(/xl\/drawings\/drawing\d+\.xml/) && !zip.files[f].dir;
+                });
+                console.log('[Excel导入] Drawing文件:', drawingFiles.length, '个');
+
                 if (drawingFiles.length > 0) {
                   // Parse relationship files
                   var relFiles = Object.keys(zip.files).filter(function(f) {
@@ -2115,6 +2122,7 @@ function renderScoresPage() {
                       if (m) rIdToFile[m[1]] = m[2];
                     });
                   }
+                  console.log('[Excel导入] 关系映射:', Object.keys(rIdToFile).length, '个');
 
                   // Parse drawing XML with flexible anchor matching
                   for (var di = 0; di < drawingFiles.length; di++) {
@@ -2163,7 +2171,21 @@ function renderScoresPage() {
                       }
                     }
                   }
-                  console.log('[Excel导入] 行映射图片:', Object.keys(rowImages).length, '张');
+                  console.log('[Excel导入] Drawing行映射图片:', Object.keys(rowImages).length, '张');
+                }
+
+                // Fallback: if no drawing XML or no matches, assign images sequentially to product rows
+                if (Object.keys(rowImages).length === 0 && allMediaImages.length > 0) {
+                  console.log('[Excel导入] 无Drawing映射，按顺序匹配图片到产品行...');
+                  var imgIdx = 0;
+                  for (var sr = 1; sr <= range.e.r && imgIdx < allMediaImages.length; sr++) {
+                    var mCell = sheet[XLSX.utils.encode_cell({ r: sr, c: colMap.model })];
+                    if (mCell && mCell.v && /^[A-Za-z0-9]/.test(String(mCell.v).trim())) {
+                      rowImages[sr] = allMediaImages[imgIdx];
+                      imgIdx++;
+                    }
+                  }
+                  console.log('[Excel导入] 顺序匹配:', Object.keys(rowImages).length, '张');
                 }
               } catch (zipErr) {
                 console.log('[Excel导入] 图片提取出错:', zipErr.message);
