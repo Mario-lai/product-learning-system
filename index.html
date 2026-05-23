@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>杰冠产品学习考试系统</title>
     <script src="data/images-data.js" onerror=""></script>
+    <script src="data/image-file-map.js" onerror=""></script>
     <script src="lib/jszip.min.js" onerror=""></script>
     <script src="lib/xlsx.mini.min.js" onerror=""></script>
     <style>
@@ -2258,18 +2259,41 @@ function renderScoresPage() {
                   console.log('[Excel导入] Drawing行映射图片:', Object.keys(rowImages).length, '张');
                 }
 
-                // Fallback: if no drawing XML or no matches, assign images sequentially to product rows
+                // Fallback: if no drawing XML or no matches, use model-to-image mapping
                 if (Object.keys(rowImages).length === 0 && allMediaImages.length > 0) {
-                  console.log('[Excel导入] 无Drawing映射，按顺序匹配图片到产品行...');
-                  var imgIdx = 0;
-                  for (var sr = 1; sr <= range.e.r && imgIdx < allMediaImages.length; sr++) {
-                    var mCell = sheet[XLSX.utils.encode_cell({ r: sr, c: colMap.model })];
-                    if (mCell && mCell.v && /^[A-Za-z0-9]/.test(String(mCell.v).trim())) {
-                      rowImages[sr] = allMediaImages[imgIdx];
-                      imgIdx++;
-                    }
+                  // Build filename -> image data lookup
+                  var fileNameToImage = {};
+                  for (var fi = 0; fi < mediaFiles.length; fi++) {
+                    var fName = mediaFiles[fi].split('/').pop(); // e.g. "image1.jpeg"
+                    fileNameToImage[fName] = allMediaImages[fi];
                   }
-                  console.log('[Excel导入] 顺序匹配:', Object.keys(rowImages).length, '张');
+
+                  if (typeof IMAGE_FILE_MAP !== 'undefined') {
+                    console.log('[Excel导入] 使用型号→图片文件映射匹配...');
+                    for (var sr = 1; sr <= range.e.r; sr++) {
+                      var mCell = sheet[XLSX.utils.encode_cell({ r: sr, c: colMap.model })];
+                      if (mCell && mCell.v && /^[A-Za-z0-9]/.test(String(mCell.v).trim())) {
+                        var model = String(mCell.v).trim();
+                        var imgFileName = IMAGE_FILE_MAP[model];
+                        if (imgFileName && fileNameToImage[imgFileName]) {
+                          rowImages[sr] = fileNameToImage[imgFileName];
+                        }
+                      }
+                    }
+                    console.log('[Excel导入] 型号匹配:', Object.keys(rowImages).length, '张');
+                  } else {
+                    // No mapping available, fall back to sequential
+                    console.log('[Excel导入] 无映射文件，按顺序匹配...');
+                    var imgIdx = 0;
+                    for (var sr2 = 1; sr2 <= range.e.r && imgIdx < allMediaImages.length; sr2++) {
+                      var mc2 = sheet[XLSX.utils.encode_cell({ r: sr2, c: colMap.model })];
+                      if (mc2 && mc2.v && /^[A-Za-z0-9]/.test(String(mc2.v).trim())) {
+                        rowImages[sr2] = allMediaImages[imgIdx];
+                        imgIdx++;
+                      }
+                    }
+                    console.log('[Excel导入] 顺序匹配:', Object.keys(rowImages).length, '张');
+                  }
                 }
               } catch (zipErr) {
                 console.log('[Excel导入] 图片提取出错:', zipErr.message);
