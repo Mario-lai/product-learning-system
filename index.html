@@ -988,7 +988,13 @@
                 reported.push(key);
                 localStorage.setItem('reportedQuestions', JSON.stringify(reported));
             }
-            if (typeof practiceState !== 'undefined' && practiceState.questions.length > 0) {
+            // Check if in exam mode or practice mode
+            if (examState.questions.length > 0 && !examState.finished) {
+                // Exam mode: skip to next question
+                examState.current++;
+                showExamQuestion();
+            } else if (practiceState.questions.length > 0) {
+                // Practice mode: next question
                 nextPracticeQuestion();
             }
         }
@@ -1187,9 +1193,11 @@ function pickDistractors(correct, pool, field) {
   var shuffled = shuffleArray(others);
   var distractors = [];
   for (var i = 0; i < Math.min(3, shuffled.length); i++) {
-    distractors.push({ id: shuffled[i].id, value: shuffled[i][field], model: shuffled[i].model, image: shuffled[i].image });
+    var val = field === 'image' ? getProductImage(shuffled[i]) : shuffled[i][field];
+    distractors.push({ id: shuffled[i].id, value: val, model: shuffled[i].model, image: getProductImage(shuffled[i]) });
   }
-  var answer = { id: correct.id, value: correct[field], model: correct.model, image: correct.image };
+  var correctVal = field === 'image' ? getProductImage(correct) : correct[field];
+  var answer = { id: correct.id, value: correctVal, model: correct.model, image: getProductImage(correct) };
   return shuffleArray([answer].concat(distractors));
 }
 
