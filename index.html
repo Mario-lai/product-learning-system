@@ -1332,7 +1332,7 @@ function showPracticeQuestion() {
       } else {
         rightContent += '<div class="no-image" style="height:100px;">无图</div>';
       }
-      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+      rightContent += '</div>';
     }
     rightContent += '</div>';
   } else if (q.type === 'voltage-to-model') {
@@ -1485,7 +1485,7 @@ function showExamQuestion() {
       } else {
         rightContent += '<div class="no-image" style="height:100px;">无图</div>';
       }
-      rightContent += '<div class="opt-text">' + q.options[i].model + '</div></div>';
+      rightContent += '</div>';
     }
     rightContent += '</div>';
   } else if (q.type === 'voltage-to-model') {
