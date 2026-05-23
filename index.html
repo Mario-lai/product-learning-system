@@ -2259,6 +2259,60 @@ function renderScoresPage() {
                   console.log('[Excel导入] Drawing行映射图片:', Object.keys(rowImages).length, '张');
                 }
 
+                // WPS cellimages: parse DISPIMG formulas (used by WPS Office)
+                if (Object.keys(rowImages).length === 0 && zip.files['xl/cellimages.xml']) {
+                  console.log('[Excel导入] 检测到WPS cellimages，解析中...');
+                  try {
+                    // 1. Parse cellimages.xml for ID -> rId
+                    var cellXml = await zip.files['xl/cellimages.xml'].async('string');
+                    var idToRId = {};
+                    var cellBlocks = cellXml.split(/<etc:cellImage>/);
+                    for (var ci = 1; ci < cellBlocks.length; ci++) {
+                      var nm = cellBlocks[ci].match(/name="(ID_[^"]+)"/);
+                      var em = cellBlocks[ci].match(/r:embed="(rId\d+)"/);
+                      if (nm && em) idToRId[nm[1]] = em[1];
+                    }
+
+                    // 2. Parse rels for rId -> image filename
+                    var cellRelsXml = await zip.files['xl/_rels/cellimages.xml.rels'].async('string');
+                    var cellRIdToFile = {};
+                    var cellRelMatches = cellRelsXml.match(/Id="rId\d+"[^>]*Target="[^"]+"/g) || [];
+                    cellRelMatches.forEach(function(r) {
+                      var m = r.match(/Id="(rId\d+)"[^>]*Target="([^"]+)"/);
+                      if (m) cellRIdToFile[m[1]] = m[2].replace('media/', '');
+                    });
+
+                    // 3. Build filename -> image data lookup
+                    var fNameToImg = {};
+                    for (var cfi = 0; cfi < mediaFiles.length; cfi++) {
+                      fNameToImg[mediaFiles[cfi].split('/').pop()] = allMediaImages[cfi];
+                    }
+
+                    // 4. Match rows with DISPIMG formulas
+                    var dispimgCount = 0;
+                    for (var dr = 1; dr <= range.e.r; dr++) {
+                      var dCell = sheet[XLSX.utils.encode_cell({ r: dr, c: colMap.image !== undefined ? colMap.image : 7 })];
+                      var formula = dCell && (dCell.f || (dCell.v && String(dCell.v).indexOf('DISPIMG') !== -1 ? String(dCell.v) : ''));
+                      if (!formula && dCell && dCell.v) formula = String(dCell.v);
+                      if (formula && formula.indexOf('DISPIMG') !== -1) {
+                        var idMatch = formula.match(/"(ID_[^"]+)"/);
+                        if (idMatch) {
+                          var dispId = idMatch[1];
+                          var dispRId = idToRId[dispId];
+                          var dispFile = dispRId ? cellRIdToFile[dispRId] : null;
+                          if (dispFile && fNameToImg[dispFile]) {
+                            rowImages[dr] = fNameToImg[dispFile];
+                            dispimgCount++;
+                          }
+                        }
+                      }
+                    }
+                    console.log('[Excel导入] WPS DISPIMG匹配:', dispimgCount, '张');
+                  } catch (cellErr) {
+                    console.log('[Excel导入] WPS cellimages解析出错:', cellErr.message);
+                  }
+                }
+
                 // Fallback: if no drawing XML or no matches, use model-to-image mapping
                 if (Object.keys(rowImages).length === 0 && allMediaImages.length > 0) {
                   // Build filename -> image data lookup
