@@ -1865,41 +1865,74 @@ function renderScoresPage() {
             var buf = new Uint8Array(e.target.result);
             var text;
 
-            // Smart encoding detection: Chinese CSV from Excel is almost always GBK
-            // Strategy: try GBK first, verify by checking if result contains expected Chinese chars
+            // Encoding detection: try GBK first (Chinese Excel default), fall back to UTF-8
             var gbkText = new TextDecoder('gbk').decode(buf);
             if (gbkText.indexOf('型号') !== -1 || gbkText.indexOf('产品') !== -1 || gbkText.indexOf('系列') !== -1) {
               text = gbkText;
-              console.log('[CSV导入] 编码: GBK');
             } else {
-              // Strip BOM if present for UTF-8
               var offset = 0;
               if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) offset = 3;
               text = new TextDecoder('utf-8').decode(buf.slice(offset));
-              console.log('[CSV导入] 编码: UTF-8');
             }
 
-            console.log('[CSV导入] 原始文本前80字符:', text.slice(0, 80));
-            console.log('[CSV导入] 文件总长度:', text.length, '行数:', text.split(/\r\n|\r|\n/).length);
+            // Standard CSV parser: handles quoted multi-line fields correctly
+            // This is the key fix - don't split by \n first, parse character by character
+            function parseCSV(text) {
+              var rows = [];
+              var row = [];
+              var field = '';
+              var inQuotes = false;
 
-            // Normalize line endings
-            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            var lines = text.split('\n');
-            if (lines.length < 2) { alert('CSV文件格式错误：至少需要表头和一行数据\n检测到 ' + lines.length + ' 行'); return; }
+              for (var i = 0; i < text.length; i++) {
+                var ch = text[i];
+                var next = text[i + 1];
 
-            // Auto-detect delimiter
-            var firstLine = lines[0];
-            var delimiter = ',';
-            if (firstLine.split('\t').length > firstLine.split(',').length) delimiter = '\t';
-            else if (firstLine.split(';').length > firstLine.split(',').length) delimiter = ';';
-            console.log('[CSV导入] 检测到分隔符:', JSON.stringify(delimiter));
+                if (inQuotes) {
+                  if (ch === '"' && next === '"') {
+                    field += '"'; // Escaped quote
+                    i++;
+                  } else if (ch === '"') {
+                    inQuotes = false; // End of quoted field
+                  } else {
+                    field += ch; // Including \n inside quotes (multi-line field)
+                  }
+                } else {
+                  if (ch === '"') {
+                    inQuotes = true;
+                  } else if (ch === ',') {
+                    row.push(field.trim());
+                    field = '';
+                  } else if (ch === '\n') {
+                    row.push(field.trim());
+                    field = '';
+                    if (row.length > 0) rows.push(row);
+                    row = [];
+                  } else if (ch === '\r') {
+                    // Skip \r
+                  } else {
+                    field += ch;
+                  }
+                }
+              }
+              // Last field/row
+              field = field.trim();
+              if (field || row.length > 0) {
+                row.push(field);
+                rows.push(row);
+              }
+              return rows;
+            }
 
-            // Parse header
-            var header = firstLine.split(delimiter);
-            console.log('[CSV导入] 表头各列:', JSON.stringify(header));
+            var allRows = parseCSV(text);
+            console.log('[CSV导入] 解析行数:', allRows.length);
+            if (allRows.length < 2) { alert('CSV文件格式错误：至少需要表头和一行数据'); return; }
+
+            // Parse header - match by keyword
+            var header = allRows[0];
+            console.log('[CSV导入] 表头:', JSON.stringify(header));
             var colMap = {};
             for (var i = 0; i < header.length; i++) {
-              var h = header[i].trim();
+              var h = header[i];
               if (h.indexOf('型号') !== -1) colMap.model = i;
               else if (h.indexOf('名称') !== -1 && h.indexOf('中文') !== -1) colMap.name = i;
               else if (h.indexOf('名称') !== -1 && h.indexOf('英文') !== -1) colMap.nameEn = i;
@@ -1911,92 +1944,56 @@ function renderScoresPage() {
             console.log('[CSV导入] 列映射:', JSON.stringify(colMap));
 
             if (colMap.model === undefined) {
-              alert('CSV格式错误：未找到"型号"列。\n\n检测到的表头（共' + header.length + '列）：\n' + header.map(function(h,i){return (i+1)+'. ['+h.trim()+']'}).join('\n') + '\n\n请确认表头包含"型号"列\n\n提示：如果表头是乱码，请将CSV另存为UTF-8编码');
+              alert('CSV格式错误：未找到"型号"列。\n\n表头：\n' + header.map(function(h,i){return (i+1)+'. '+h}).join('\n'));
               return;
             }
 
+            // Build series name→id mapping (supports both Chinese names and IDs)
+            var seriesNameToId = {};
+            SERIES.forEach(function(s) {
+              seriesNameToId[s.id] = s.id;
+              seriesNameToId[s.label] = s.id;
+              // Also match partial names
+              var shortLabel = s.label.replace('系列', '');
+              if (!seriesNameToId[shortLabel]) seriesNameToId[shortLabel] = s.id;
+            });
+
             var imported = 0;
-            var skipped = 0;
+            var updated = 0;
             var products = getProducts();
 
-            // Helper: parse a CSV line into fields
-            function parseCSVLine(line) {
-              var fields = [];
-              var current = '';
-              var inQuotes = false;
-              for (var ci = 0; ci < line.length; ci++) {
-                var ch = line[ci];
-                if (ch === '"') { inQuotes = !inQuotes; }
-                else if (ch === delimiter && !inQuotes) { fields.push(current.trim()); current = ''; }
-                else { current += ch; }
-              }
-              fields.push(current.trim());
-              return fields;
-            }
+            for (var ri = 1; ri < allRows.length; ri++) {
+              var fields = allRows[ri];
+              var model = colMap.model !== undefined ? fields[colMap.model] : '';
+              if (!model) continue;
 
-            // Helper: check if a string looks like a product model number
-            function isModelNumber(s) {
-              return /^[A-Za-z0-9][\w\-\.\s\/]{1,30}$/.test(s) && /[A-Za-z0-9]/.test(s) && s.indexOf('*') === -1 && s.indexOf('。') === -1 && s.indexOf('，') === -1;
-            }
-
-            // Group lines: accumulate continuation lines into product rows
-            // A product row is one where the first field looks like a model number
-            var groupedRows = [];
-            var currentFields = null;
-
-            for (var li = 1; li < lines.length; li++) {
-              var line = lines[li].trim();
-              if (!line) continue;
-
-              var fields = parseCSVLine(line);
-              var firstField = fields[0] || '';
-
-              if (isModelNumber(firstField)) {
-                // This is a new product row
-                if (currentFields) groupedRows.push(currentFields);
-                currentFields = fields;
-              } else if (currentFields) {
-                // Continuation line - append remaining data to current product
-                // Find which field in currentFields needs to be extended
-                // If currentFields has fewer fields than expected, append to last field
-                // Otherwise, append to the last non-empty matching field
-                if (currentFields.length > 0) {
-                  currentFields[currentFields.length - 1] += ' ' + line;
+              // Resolve series: try direct match, then partial match
+              var rawSeries = colMap.series !== undefined ? fields[colMap.series] : '';
+              var seriesId = seriesNameToId[rawSeries] || SERIES[0].id;
+              // Try partial match if no direct match
+              if (!seriesNameToId[rawSeries]) {
+                for (var key in seriesNameToId) {
+                  if (rawSeries.indexOf(key) !== -1 || key.indexOf(rawSeries) !== -1) {
+                    seriesId = seriesNameToId[key];
+                    break;
+                  }
                 }
               }
-              // else: orphan continuation line, skip
-            }
-            if (currentFields) groupedRows.push(currentFields);
 
-            console.log('[CSV导入] 合并后产品行数:', groupedRows.length);
-
-            for (var gi = 0; gi < groupedRows.length; gi++) {
-              var fields = groupedRows[gi];
-              var model = colMap.model !== undefined ? fields[colMap.model] : '';
-              if (!model) { skipped++; continue; }
-
-              // Check if product already exists (update) or new (add)
+              // Check if product already exists
               var existing = null;
               for (var pi = 0; pi < products.length; pi++) {
                 if (products[pi].model === model) { existing = products[pi]; break; }
               }
 
-              var seriesVal = colMap.series !== undefined ? fields[colMap.series] : '';
-              // Validate series
-              var validSeries = false;
-              for (var si = 0; si < SERIES.length; si++) {
-                if (SERIES[si].id === seriesVal) { validSeries = true; break; }
-              }
-              if (!validSeries) seriesVal = SERIES[0].id;
-
               var productData = {
                 model: model,
                 name: colMap.name !== undefined ? fields[colMap.name] : model,
-                nameEn: colMap.nameEn !== undefined ? fields[colMap.nameEn] : '',
-                series: seriesVal,
-                parameters: colMap.params !== undefined ? fields[colMap.params] : '',
-                parametersEn: colMap.paramsEn !== undefined ? fields[colMap.paramsEn] : '',
-                functions: colMap.functions !== undefined ? fields[colMap.functions] : '',
+                nameEn: colMap.nameEn !== undefined ? (fields[colMap.nameEn] || '') : '',
+                series: seriesId,
+                parameters: colMap.params !== undefined ? (fields[colMap.params] || '') : '',
+                parametersEn: colMap.paramsEn !== undefined ? (fields[colMap.paramsEn] || '') : '',
+                functions: colMap.functions !== undefined ? (fields[colMap.functions] || '') : '',
                 images: existing ? (existing.images || []) : [],
                 image: existing ? (existing.image || '') : ''
               };
@@ -2007,17 +2004,17 @@ function renderScoresPage() {
                     existing[k] = productData[k];
                   }
                 });
+                updated++;
               } else {
                 productData.id = 'p' + Date.now() + '_' + imported;
                 products.push(productData);
+                imported++;
               }
-              imported++;
             }
 
             saveProducts(products);
-            console.log('[CSV导入] 完成: 导入', imported, '跳过', skipped);
-            var msg = '成功导入 ' + imported + ' 个产品！';
-            if (skipped > 0) msg += '\n（跳过 ' + skipped + ' 行空数据）';
+            var msg = '导入完成！新增 ' + imported + ' 个，更新 ' + updated + ' 个产品。';
+            console.log('[CSV导入]', msg);
             alert(msg);
             renderAdminPanel();
             input.value = '';
