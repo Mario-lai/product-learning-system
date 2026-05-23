@@ -2073,32 +2073,35 @@ function renderScoresPage() {
 
               // 2. Extract images from xlsx (it's a ZIP file)
               var rowImages = {}; // row -> base64 data URL
+              var allMediaImages = []; // all images in order
               try {
                 var zip = await JSZip.loadAsync(data);
-                var imageFiles = Object.keys(zip.files).filter(function(f) {
+
+                // Collect all media files in order
+                var mediaFiles = Object.keys(zip.files).filter(function(f) {
                   return f.startsWith('xl/media/') && !zip.files[f].dir;
+                }).sort(function(a, b) {
+                  var na = parseInt(a.match(/image(\d+)/)[1]);
+                  var nb = parseInt(b.match(/image(\d+)/)[1]);
+                  return na - nb;
                 });
 
-                if (imageFiles.length > 0) {
-                  // Parse drawing XML to map images to rows
-                  var drawingFiles = Object.keys(zip.files).filter(function(f) {
-                    return f.match(/xl\/drawings\/drawing\d+\.xml/) && !zip.files[f].dir;
-                  });
+                // Load all images first
+                for (var mi = 0; mi < mediaFiles.length; mi++) {
+                  var imgBase64 = await zip.files[mediaFiles[mi]].async('base64');
+                  var imgExt = mediaFiles[mi].split('.').pop().toLowerCase();
+                  var imgMime = imgExt === 'png' ? 'image/png' : imgExt === 'gif' ? 'image/gif' : 'image/jpeg';
+                  allMediaImages.push('data:' + imgMime + ';base64,' + imgBase64);
+                }
+                console.log('[Excel导入] 找到媒体文件:', allMediaImages.length, '张');
 
-                  var rIdToRow = {};
-                  for (var di = 0; di < drawingFiles.length; di++) {
-                    var dXml = await zip.files[drawingFiles[di]].async('string');
-                    var anchors = dXml.split('<xdr:twoCellAnchor');
-                    for (var ai = 1; ai < anchors.length; ai++) {
-                      var rowMatch = anchors[ai].match(/<xdr:row>(\d+)<\/xdr:row>/);
-                      var blipMatch = anchors[ai].match(/r:embed="(rId\d+)"/);
-                      if (rowMatch && blipMatch) {
-                        rIdToRow[blipMatch[1]] = parseInt(rowMatch[1]);
-                      }
-                    }
-                  }
+                // Try to parse drawing XML for row mapping
+                var drawingFiles = Object.keys(zip.files).filter(function(f) {
+                  return f.match(/xl\/drawings\/drawing\d+\.xml/) && !zip.files[f].dir;
+                });
 
-                  // Parse relationship XML to map rId to file
+                if (drawingFiles.length > 0) {
+                  // Parse relationship files
                   var relFiles = Object.keys(zip.files).filter(function(f) {
                     return f.match(/xl\/drawings\/_rels\/drawing\d+\.xml\.rels/) && !zip.files[f].dir;
                   });
@@ -2106,30 +2109,64 @@ function renderScoresPage() {
                   var rIdToFile = {};
                   for (var ri = 0; ri < relFiles.length; ri++) {
                     var relXml = await zip.files[relFiles[ri]].async('string');
-                    var rels = relXml.match(/Id="rId\d+"[^>]*Target="[^"]+"/g) || [];
-                    rels.forEach(function(r) {
+                    var relMatches = relXml.match(/Id="rId\d+"[^>]*Target="[^"]+"/g) || [];
+                    relMatches.forEach(function(r) {
                       var m = r.match(/Id="(rId\d+)"[^>]*Target="([^"]+)"/);
                       if (m) rIdToFile[m[1]] = m[2];
                     });
                   }
 
-                  // Load images and map to rows
-                  for (var rId in rIdToRow) {
-                    var fileRef = rIdToFile[rId];
-                    if (fileRef) {
-                      var mediaFile = 'xl/' + fileRef.replace('../', '');
-                      if (zip.files[mediaFile]) {
-                        var imgBuf = await zip.files[mediaFile].async('base64');
-                        var ext = mediaFile.split('.').pop().toLowerCase();
-                        var mime = ext === 'png' ? 'image/png' : 'image/jpeg';
-                        rowImages[rIdToRow[rId]] = 'data:' + mime + ';base64,' + imgBuf;
+                  // Parse drawing XML with flexible anchor matching
+                  for (var di = 0; di < drawingFiles.length; di++) {
+                    var dXml = await zip.files[drawingFiles[di]].async('string');
+                    console.log('[Excel导入] Drawing XML长度:', dXml.length);
+
+                    // Match all anchor types: twoCellAnchor, oneCellAnchor
+                    var anchorRegex = /<(xdr:twoCellAnchor|xdr:oneCellAnchor)[^>]*>([\s\S]*?)<\/\1>/g;
+                    var anchorMatch;
+                    while ((anchorMatch = anchorRegex.exec(dXml)) !== null) {
+                      var content = anchorMatch[2];
+                      var rowMatch = content.match(/<xdr:row>(\d+)<\/xdr:row>/);
+                      var blipMatch = content.match(/r:embed="(rId\d+)"/);
+                      if (rowMatch && blipMatch) {
+                        var rowNum = parseInt(rowMatch[1]);
+                        var rId = blipMatch[1];
+                        var fileRef = rIdToFile[rId];
+                        if (fileRef) {
+                          var mediaFile = 'xl/' + fileRef.replace('../', '');
+                          var mediaIdx = mediaFiles.indexOf(mediaFile);
+                          if (mediaIdx >= 0) {
+                            rowImages[rowNum] = allMediaImages[mediaIdx];
+                          }
+                        }
+                      }
+                    }
+
+                    // Also try simple split approach as fallback
+                    if (Object.keys(rowImages).length === 0) {
+                      var parts = dXml.split(/<xdr:(twoCellAnchor|oneCellAnchor)/);
+                      for (var pi = 1; pi < parts.length; pi++) {
+                        var rMatch = parts[pi].match(/<xdr:row>(\d+)<\/xdr:row>/);
+                        var bMatch = parts[pi].match(/r:embed="(rId\d+)"/);
+                        if (rMatch && bMatch) {
+                          var rNum = parseInt(rMatch[1]);
+                          var rId2 = bMatch[1];
+                          var fRef = rIdToFile[rId2];
+                          if (fRef) {
+                            var mFile = 'xl/' + fRef.replace('../', '');
+                            var mIdx = mediaFiles.indexOf(mFile);
+                            if (mIdx >= 0) {
+                              rowImages[rNum] = allMediaImages[mIdx];
+                            }
+                          }
+                        }
                       }
                     }
                   }
-                  console.log('[Excel导入] 提取图片:', Object.keys(rowImages).length, '张');
+                  console.log('[Excel导入] 行映射图片:', Object.keys(rowImages).length, '张');
                 }
               } catch (zipErr) {
-                console.log('[Excel导入] 图片提取跳过:', zipErr.message);
+                console.log('[Excel导入] 图片提取出错:', zipErr.message);
               }
 
               // 3. Import products
