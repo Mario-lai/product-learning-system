@@ -1701,6 +1701,7 @@ function renderScoresPage() {
             '<span style="color:#666;">共 ' + products.length + ' 个产品</span>' +
             '<div>' +
             '<button class="add-btn" onclick="showAddProduct()" style="margin-right:8px;">+ 添加产品</button>' +
+            '<button class="reset-btn" onclick="downloadCSVTemplate()" style="margin-right:8px;">下载导入模板</button>' +
             '<button class="reset-btn" onclick="document.getElementById(\'csvImport\').click()" style="margin-right:8px;">批量导入CSV</button>' +
             '<input type="file" id="csvImport" accept=".csv" onchange="importCSV(this)" style="display:none;">' +
             '<button class="reset-btn" onclick="exportCSV()" style="margin-right:8px;">导出CSV</button>' +
@@ -2022,6 +2023,21 @@ function renderScoresPage() {
             input.value = '';
           };
           reader.readAsArrayBuffer(file);
+        }
+
+        function downloadCSVTemplate() {
+          var seriesIds = SERIES.map(function(s) { return s.id; }).join('/');
+          var csv = '﻿型号,产品名称(中文),产品名称(英文),所属系列,产品参数(中文),产品参数(英文),功能描述\n';
+          csv += 'EOA-101-CMP,10盘万能蒸烤箱,10-Pan Combi Oven,combi-steamer,"10x1/1GN / 18kW / 380V / 848x771x1068mm","10x 1/1 GN / 18kW / 380V / 848x771x1068mm","热风烘烤、蒸煮、组合烹饪、低温慢煮、解冻、自动清洗"\n';
+          csv += 'EB-4AL,全透视热风循环电烤箱,Electric Convection Oven,oven,"460x380x360mm / 34L / 1.6kW / 220V","460x380x360mm / 34L / 1.6kW / 220V","热风循环、喷雾锁汁、定时上加热"\n';
+          csv += 'EH-2D,圆盆保温汤池,Electric Bain Marie 2-Pan,supermarket,"325x265x150mm / 30-110℃ / 1kW / 220V","325x265x150mm / 30-110℃ / 1kW / 220V","双盆分区精准控温保温，可同时保温不同餐品"\n';
+          csv += '\n---------- 以下是可选系列ID参考（请删除此行后再导入）----------\n';
+          SERIES.forEach(function(s) { csv += '# ' + s.id + ' = ' + s.label + '\n'; });
+          var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = '产品导入模板.csv';
+          link.click();
         }
 
         function exportCSV() {
