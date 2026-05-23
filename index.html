@@ -1065,6 +1065,12 @@
         function getProductImage(product) {
             if (product.images && product.images.length > 0 && product.images[0]) return product.images[0];
             if (product.image) return product.image;
+            // Fallback: load from images/ folder using model-to-file mapping
+            if (typeof IMAGE_FILE_MAP !== 'undefined' && IMAGE_FILE_MAP[product.model]) {
+              var fileName = IMAGE_FILE_MAP[product.model]; // e.g. "image236.jpeg"
+              var num = fileName.replace('image', '').replace(/\.\w+$/, ''); // "236"
+              return 'images/' + num + '.jpeg';
+            }
             return '';
         }
 
