@@ -958,7 +958,64 @@
             }
         ];
 
+        // IndexedDB storage for large data (images)
+        var DB_NAME = 'JieguanProductDB';
+        var DB_VER = 1;
+        var STORE = 'products';
+        var _cachedProducts = null;
+
+        function _idbOpen(cb) {
+          var req = indexedDB.open(DB_NAME, DB_VER);
+          req.onupgradeneeded = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+          };
+          req.onsuccess = function(e) { cb(null, e.target.result); };
+          req.onerror = function(e) { cb(e.target.error); };
+        }
+
+        function _idbSave(key, val, cb) {
+          _idbOpen(function(err, db) {
+            if (err) return cb && cb(err);
+            var tx = db.transaction(STORE, 'readwrite');
+            tx.objectStore(STORE).put(val, key);
+            tx.oncomplete = function() { cb && cb(null); };
+            tx.onerror = function() { cb && cb(tx.error); };
+          });
+        }
+
+        function _idbLoad(key, cb) {
+          _idbOpen(function(err, db) {
+            if (err) return cb(err);
+            var tx = db.transaction(STORE, 'readonly');
+            var req = tx.objectStore(STORE).get(key);
+            req.onsuccess = function() { cb(null, req.result); };
+            req.onerror = function() { cb(req.error); };
+          });
+        }
+
+        // Compress image to reduce storage size
+        function compressImage(dataUrl, maxSize, quality) {
+          return new Promise(function(resolve) {
+            var img = new Image();
+            img.onload = function() {
+              var w = img.width, h = img.height;
+              if (w > maxSize || h > maxSize) {
+                if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+                else { w = Math.round(w * maxSize / h); h = maxSize; }
+              }
+              var canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = function() { resolve(dataUrl); };
+            img.src = dataUrl;
+          });
+        }
+
         function getProducts() {
+            if (_cachedProducts) return _cachedProducts;
             var custom = JSON.parse(localStorage.getItem('products') || 'null');
             var products = custom ? custom : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
             // Merge batch-imported images
@@ -969,15 +1026,39 @@
                     }
                 }
             }
+            _cachedProducts = products;
             return products;
         }
 
         function saveProducts(products) {
-            localStorage.setItem('products', JSON.stringify(products));
+            _cachedProducts = products;
+            // Save to IndexedDB (handles large image data)
+            _idbSave('products', products, function(err) {
+              if (err) console.warn('[存储] IndexedDB保存失败:', err);
+            });
+            // Also save to localStorage without images as fallback
+            try {
+              var lite = products.map(function(p) {
+                var copy = Object.assign({}, p);
+                if (copy.image && copy.image.length > 1000) copy.image = '';
+                if (copy.images) copy.images = copy.images.map(function(img) { return img && img.length > 1000 ? '' : img; });
+                return copy;
+              });
+              localStorage.setItem('products', JSON.stringify(lite));
+            } catch(e) {
+              console.warn('[存储] localStorage保存失败:', e.message);
+            }
         }
 
         function resetProducts() {
+            _cachedProducts = null;
             localStorage.removeItem('products');
+            _idbOpen(function(err, db) {
+              if (!err) {
+                var tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).clear();
+              }
+            });
         }
 
         function getProductImage(product) {
@@ -2087,14 +2168,17 @@ function renderScoresPage() {
                   return parseInt(ma[1]) - parseInt(mb[1]);
                 });
 
-                // Load all images first
+                // Load all images first (with compression)
                 for (var mi = 0; mi < mediaFiles.length; mi++) {
                   var imgBase64 = await zip.files[mediaFiles[mi]].async('base64');
                   var imgExt = mediaFiles[mi].split('.').pop().toLowerCase();
                   var imgMime = imgExt === 'png' ? 'image/png' : imgExt === 'gif' ? 'image/gif' : 'image/jpeg';
-                  allMediaImages.push('data:' + imgMime + ';base64,' + imgBase64);
+                  var rawUrl = 'data:' + imgMime + ';base64,' + imgBase64;
+                  // Compress to 300px max, JPEG quality 0.7
+                  var compressed = await compressImage(rawUrl, 300, 0.7);
+                  allMediaImages.push(compressed);
                 }
-                console.log('[Excel导入] 找到媒体文件:', allMediaImages.length, '张');
+                console.log('[Excel导入] 找到并压缩媒体文件:', allMediaImages.length, '张');
 
                 // Try to parse drawing XML for row mapping
                 var drawingFiles = Object.keys(zip.files).filter(function(f) {
@@ -2345,12 +2429,23 @@ function renderScoresPage() {
           }
         })();
 
-        renderFilterBar();
-        renderProductGrid();
-        renderPracticeSetup();
-        renderExamSetup();
-        renderWrongPage();
-        renderScoresPage();
+        // Initialize: load products from IndexedDB, then render
+        _idbLoad('products', function(err, data) {
+          if (!err && data && data.length > 0) {
+            _cachedProducts = data;
+            console.log('[初始化] 从IndexedDB加载', data.length, '个产品');
+          } else {
+            // Fallback to localStorage or defaults
+            getProducts();
+            console.log('[初始化] 从localStorage加载', _cachedProducts.length, '个产品');
+          }
+          renderFilterBar();
+          renderProductGrid();
+          renderPracticeSetup();
+          renderExamSetup();
+          renderWrongPage();
+          renderScoresPage();
+        });
     </script>
 
 </body>
