@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>杰冠产品学习考试系统</title>
     <script src="data/images-data.js" onerror=""></script>
+    <script src="lib/jszip.min.js" onerror=""></script>
+    <script src="lib/xlsx.mini.min.js" onerror=""></script>
     <style>
         * {
             margin: 0;
@@ -1704,6 +1706,8 @@ function renderScoresPage() {
             '<button class="reset-btn" onclick="downloadCSVTemplate()" style="margin-right:8px;">下载导入模板</button>' +
             '<button class="reset-btn" onclick="document.getElementById(\'csvImport\').click()" style="margin-right:8px;">批量导入CSV</button>' +
             '<input type="file" id="csvImport" accept=".csv" onchange="importCSV(this)" style="display:none;">' +
+            '<button class="reset-btn" onclick="document.getElementById(\'xlsxImport\').click()" style="margin-right:8px;">导入Excel(含图片)</button>' +
+            '<input type="file" id="xlsxImport" accept=".xlsx,.xls" onchange="importXLSX(this)" style="display:none;">' +
             '<button class="reset-btn" onclick="exportCSV()" style="margin-right:8px;">导出CSV</button>' +
             '<button class="reset-btn" onclick="if(confirm(\'重置为默认数据？\')){resetProducts();renderAdminPanel();}">重置数据</button>' +
             '</div></div>' +
@@ -2018,6 +2022,184 @@ function renderScoresPage() {
             alert(msg);
             renderAdminPanel();
             input.value = '';
+          };
+          reader.readAsArrayBuffer(file);
+        }
+
+        function importXLSX(input) {
+          var file = input.files[0];
+          if (!file) return;
+          alert('正在解析Excel文件，请稍候...');
+          var reader = new FileReader();
+          reader.onload = async function(e) {
+            try {
+              var data = new Uint8Array(e.target.result);
+
+              // 1. Read sheet data with xlsx library
+              var wb = XLSX.read(data, { type: 'array' });
+              var sheet = wb.Sheets[wb.SheetNames[0]];
+              var range = XLSX.utils.decode_range(sheet['!ref']);
+
+              // Find column indices from header row
+              var colMap = {};
+              for (var c = range.s.c; c <= range.e.c; c++) {
+                var cell = sheet[XLSX.utils.encode_cell({ r: 0, c: c })];
+                if (!cell || !cell.v) continue;
+                var h = String(cell.v).trim();
+                if (h.indexOf('型号') !== -1) colMap.model = c;
+                else if (h.indexOf('名称') !== -1 && h.indexOf('中文') !== -1) colMap.name = c;
+                else if (h.indexOf('名称') !== -1 && h.indexOf('英文') !== -1) colMap.nameEn = c;
+                else if (h.indexOf('系列') !== -1 && h.indexOf('分类') === -1) colMap.series = c;
+                else if (h.indexOf('系列分类') !== -1) colMap.series = c;
+                else if (h.indexOf('参数') !== -1 && h.indexOf('中文') !== -1) colMap.params = c;
+                else if (h.indexOf('参数') !== -1 && h.indexOf('英文') !== -1) colMap.paramsEn = c;
+                else if (h.indexOf('功能') !== -1) colMap.functions = c;
+              }
+              console.log('[Excel导入] 列映射:', JSON.stringify(colMap));
+
+              if (colMap.model === undefined) {
+                alert('Excel格式错误：未找到"型号"列');
+                return;
+              }
+
+              // Build series mapping
+              var seriesNameToId = {};
+              SERIES.forEach(function(s) {
+                seriesNameToId[s.id] = s.id;
+                seriesNameToId[s.label] = s.id;
+                var short = s.label.replace('系列', '');
+                if (!seriesNameToId[short]) seriesNameToId[short] = s.id;
+              });
+
+              // 2. Extract images from xlsx (it's a ZIP file)
+              var rowImages = {}; // row -> base64 data URL
+              try {
+                var zip = await JSZip.loadAsync(data);
+                var imageFiles = Object.keys(zip.files).filter(function(f) {
+                  return f.startsWith('xl/media/') && !zip.files[f].dir;
+                });
+
+                if (imageFiles.length > 0) {
+                  // Parse drawing XML to map images to rows
+                  var drawingFiles = Object.keys(zip.files).filter(function(f) {
+                    return f.match(/xl\/drawings\/drawing\d+\.xml/) && !zip.files[f].dir;
+                  });
+
+                  var rIdToRow = {};
+                  for (var di = 0; di < drawingFiles.length; di++) {
+                    var dXml = await zip.files[drawingFiles[di]].async('string');
+                    var anchors = dXml.split('<xdr:twoCellAnchor');
+                    for (var ai = 1; ai < anchors.length; ai++) {
+                      var rowMatch = anchors[ai].match(/<xdr:row>(\d+)<\/xdr:row>/);
+                      var blipMatch = anchors[ai].match(/r:embed="(rId\d+)"/);
+                      if (rowMatch && blipMatch) {
+                        rIdToRow[blipMatch[1]] = parseInt(rowMatch[1]);
+                      }
+                    }
+                  }
+
+                  // Parse relationship XML to map rId to file
+                  var relFiles = Object.keys(zip.files).filter(function(f) {
+                    return f.match(/xl\/drawings\/_rels\/drawing\d+\.xml\.rels/) && !zip.files[f].dir;
+                  });
+
+                  var rIdToFile = {};
+                  for (var ri = 0; ri < relFiles.length; ri++) {
+                    var relXml = await zip.files[relFiles[ri]].async('string');
+                    var rels = relXml.match(/Id="rId\d+"[^>]*Target="[^"]+"/g) || [];
+                    rels.forEach(function(r) {
+                      var m = r.match(/Id="(rId\d+)"[^>]*Target="([^"]+)"/);
+                      if (m) rIdToFile[m[1]] = m[2];
+                    });
+                  }
+
+                  // Load images and map to rows
+                  for (var rId in rIdToRow) {
+                    var fileRef = rIdToFile[rId];
+                    if (fileRef) {
+                      var mediaFile = 'xl/' + fileRef.replace('../', '');
+                      if (zip.files[mediaFile]) {
+                        var imgBuf = await zip.files[mediaFile].async('base64');
+                        var ext = mediaFile.split('.').pop().toLowerCase();
+                        var mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+                        rowImages[rIdToRow[rId]] = 'data:' + mime + ';base64,' + imgBuf;
+                      }
+                    }
+                  }
+                  console.log('[Excel导入] 提取图片:', Object.keys(rowImages).length, '张');
+                }
+              } catch (zipErr) {
+                console.log('[Excel导入] 图片提取跳过:', zipErr.message);
+              }
+
+              // 3. Import products
+              var products = getProducts();
+              var imported = 0, updated = 0;
+
+              for (var r = 1; r <= range.e.r; r++) {
+                var modelCell = sheet[XLSX.utils.encode_cell({ r: r, c: colMap.model })];
+                if (!modelCell || !modelCell.v) continue;
+                var model = String(modelCell.v).trim();
+                if (!model || !/^[A-Za-z0-9]/.test(model)) continue;
+
+                var getVal = function(col) {
+                  if (col === undefined) return '';
+                  var c = sheet[XLSX.utils.encode_cell({ r: r, c: col })];
+                  return c && c.v ? String(c.v).trim() : '';
+                };
+
+                var rawSeries = getVal(colMap.series);
+                var seriesId = seriesNameToId[rawSeries] || SERIES[0].id;
+                if (!seriesNameToId[rawSeries]) {
+                  for (var key in seriesNameToId) {
+                    if (rawSeries.indexOf(key) !== -1 || key.indexOf(rawSeries) !== -1) {
+                      seriesId = seriesNameToId[key]; break;
+                    }
+                  }
+                }
+
+                var existing = null;
+                for (var pi = 0; pi < products.length; pi++) {
+                  if (products[pi].model === model) { existing = products[pi]; break; }
+                }
+
+                var imgData = rowImages[r] || (existing ? existing.image : '') || '';
+
+                var productData = {
+                  model: model,
+                  name: getVal(colMap.name) || model,
+                  nameEn: getVal(colMap.nameEn),
+                  series: seriesId,
+                  parameters: getVal(colMap.params),
+                  parametersEn: getVal(colMap.paramsEn),
+                  functions: getVal(colMap.functions),
+                  image: imgData,
+                  images: imgData ? [imgData] : (existing ? (existing.images || []) : [])
+                };
+
+                if (existing) {
+                  Object.keys(productData).forEach(function(k) {
+                    if (productData[k] || k === 'images' || k === 'image') {
+                      existing[k] = productData[k];
+                    }
+                  });
+                  updated++;
+                } else {
+                  productData.id = 'p' + Date.now() + '_' + imported;
+                  products.push(productData);
+                  imported++;
+                }
+              }
+
+              saveProducts(products);
+              var imgCount = Object.keys(rowImages).length;
+              alert('导入完成！新增 ' + imported + ' 个，更新 ' + updated + ' 个产品，提取 ' + imgCount + ' 张图片。');
+              renderAdminPanel();
+              input.value = '';
+            } catch (err) {
+              alert('导入失败: ' + err.message);
+              console.error(err);
+            }
           };
           reader.readAsArrayBuffer(file);
         }
