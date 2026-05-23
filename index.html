@@ -1789,6 +1789,7 @@ function renderScoresPage() {
             '<button class="reset-btn" onclick="document.getElementById(\'xlsxImport\').click()" style="margin-right:8px;">导入Excel(含图片)</button>' +
             '<input type="file" id="xlsxImport" accept=".xlsx,.xls" onchange="importXLSX(this)" style="display:none;">' +
             '<button class="reset-btn" onclick="exportCSV()" style="margin-right:8px;">导出CSV</button>' +
+            '<button class="reset-btn" onclick="exportImageData()" style="margin-right:8px;background:#e65100;color:#fff;">导出图片数据</button>' +
             '<button class="reset-btn" onclick="if(confirm(\'重置为默认数据？\')){resetProducts();renderAdminPanel();}">重置数据</button>' +
             '</div></div>' +
             '<table class="admin-table">' +
@@ -2449,6 +2450,33 @@ function renderScoresPage() {
           link.href = URL.createObjectURL(blob);
           link.download = '产品数据_' + new Date().toISOString().slice(0,10) + '.csv';
           link.click();
+        }
+
+        function exportImageData() {
+          var products = getProducts();
+          var imageData = {};
+          var count = 0;
+          for (var i = 0; i < products.length; i++) {
+            var p = products[i];
+            var img = getProductImage(p);
+            if (img && img.length > 100) {
+              imageData[p.model] = img;
+              count++;
+            }
+          }
+          if (count === 0) {
+            alert('没有可导出的图片数据');
+            return;
+          }
+          var js = '// 产品图片数据 - 共 ' + count + ' 个产品\n';
+          js += '// 生成时间: ' + new Date().toLocaleString() + '\n';
+          js += 'var IMAGE_DATA = ' + JSON.stringify(imageData) + ';\n';
+          var blob = new Blob([js], { type: 'application/javascript;charset=utf-8;' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'images-data.js';
+          link.click();
+          alert('已导出 ' + count + ' 个产品的图片数据。\n\n请将下载的文件放到项目的 data/ 文件夹中（覆盖 data/images-data.js），然后推送到 GitHub 即可在所有设备上查看图片。');
         }
 
         function aiGenerateFunctions() {
