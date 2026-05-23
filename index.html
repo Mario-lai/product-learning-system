@@ -1169,12 +1169,10 @@
                 }
                 html += '<div class="card-body">';
                 html += '<div class="card-model">' + p.model + '</div>';
+                html += '<div class="card-name">' + (p.nameEn || p.name) + '</div>';
                 html += '<div class="card-params">';
                 html += '<div class="label">Product Parameters / 产品参数</div>';
                 html += '<div>' + (p.parameters || '-') + '</div>';
-                if (p.parametersEn) {
-                    html += '<div style="color:#999;margin-top:4px;">' + p.parametersEn + '</div>';
-                }
                 html += '</div>';
                 if (p.functions) {
                     html += '<div class="card-func"> ' + p.functions + '</div>';
@@ -1313,7 +1311,7 @@ function showPracticeQuestion() {
     if (img) {
       leftContent = '<img src="' + img + '" alt="' + q.product.model + '">';
     } else {
-      leftContent = '<div class="no-image" style="height:300px;">' + q.product.model + '</div>';
+      leftContent = '<div class="no-image" style="height:300px;">暂无图片</div>';
     }
     rightContent = '<div class="option-grid">';
     for (var i = 0; i < q.options.length; i++) {
@@ -1466,7 +1464,7 @@ function showExamQuestion() {
     if (img) {
       leftContent = '<img src="' + img + '" alt="' + q.product.model + '">';
     } else {
-      leftContent = '<div class="no-image" style="height:300px;">' + q.product.model + '</div>';
+      leftContent = '<div class="no-image" style="height:300px;">暂无图片</div>';
     }
     rightContent = '<div class="option-grid">';
     for (var i = 0; i < q.options.length; i++) {
@@ -1544,6 +1542,7 @@ function finishExam() {
     if (examState.answers[i].correct) correctCount++;
   }
   var total = examState.questions.length;
+  var maxScore = total * 2;
   var score = correctCount * 2;
   var elapsed = Math.round((Date.now() - examState.startTime) / 1000);
   var mins = Math.floor(elapsed / 60);
@@ -1575,7 +1574,7 @@ function finishExam() {
   document.getElementById('examContent').innerHTML =
     '<div class="exam-result">' +
     '<div class="score-big">' + score + '分</div>' +
-    '<div class="score-label">满分100分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒</div>' +
+    '<div class="score-label">满分' + maxScore + '分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒</div>' +
     '<button class="start-btn" onclick="renderExamSetup()" style="background:#1a73e8;">返回</button>' +
     '</div>' +
     '<div class="exam-review">' + reviewHtml + '</div>';
@@ -2085,7 +2084,7 @@ function renderScoresPage() {
 
               if (existing) {
                 Object.keys(productData).forEach(function(k) {
-                  if (productData[k] || k === 'images' || k === 'image') {
+                  if (productData[k] || (k !== 'image' && k !== 'images')) {
                     existing[k] = productData[k];
                   }
                 });
@@ -2179,11 +2178,6 @@ function renderScoresPage() {
                   allMediaImages.push(compressed);
                 }
                 console.log('[Excel导入] 找到并压缩媒体文件:', allMediaImages.length, '张');
-
-                // Try to parse drawing XML for row mapping
-                var drawingFiles = Object.keys(zip.files).filter(function(f) {
-                  return f.match(/xl\/drawings\/drawing\d+\.xml/) && !zip.files[f].dir;
-                });
 
                 // Try to parse drawing XML for row mapping
                 var drawingFiles = Object.keys(zip.files).filter(function(f) {
@@ -2430,8 +2424,6 @@ function renderScoresPage() {
           csv += 'EOA-101-CMP,10盘万能蒸烤箱,10-Pan Combi Oven,combi-steamer,"10x1/1GN / 18kW / 380V / 848x771x1068mm","10x 1/1 GN / 18kW / 380V / 848x771x1068mm","热风烘烤、蒸煮、组合烹饪、低温慢煮、解冻、自动清洗"\n';
           csv += 'EB-4AL,全透视热风循环电烤箱,Electric Convection Oven,oven,"460x380x360mm / 34L / 1.6kW / 220V","460x380x360mm / 34L / 1.6kW / 220V","热风循环、喷雾锁汁、定时上加热"\n';
           csv += 'EH-2D,圆盆保温汤池,Electric Bain Marie 2-Pan,supermarket,"325x265x150mm / 30-110℃ / 1kW / 220V","325x265x150mm / 30-110℃ / 1kW / 220V","双盆分区精准控温保温，可同时保温不同餐品"\n';
-          csv += '\n---------- 以下是可选系列ID参考（请删除此行后再导入）----------\n';
-          SERIES.forEach(function(s) { csv += '# ' + s.id + ' = ' + s.label + '\n'; });
           var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
           var link = document.createElement('a');
           link.href = URL.createObjectURL(blob);
