@@ -2471,12 +2471,73 @@ function renderScoresPage() {
           var js = '// 产品图片数据 - 共 ' + count + ' 个产品\n';
           js += '// 生成时间: ' + new Date().toLocaleString() + '\n';
           js += 'var IMAGE_DATA = ' + JSON.stringify(imageData) + ';\n';
-          var blob = new Blob([js], { type: 'application/javascript;charset=utf-8;' });
-          var link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = 'images-data.js';
-          link.click();
-          alert('已导出 ' + count + ' 个产品的图片数据。\n\n请将下载的文件放到项目的 data/ 文件夹中（覆盖 data/images-data.js），然后推送到 GitHub 即可在所有设备上查看图片。');
+
+          var token = localStorage.getItem('github_token');
+          if (!token) {
+            token = prompt('首次使用需要输入 GitHub Personal Access Token（只需输入一次）：\n\n获取方式：GitHub → Settings → Developer settings → Personal access tokens → Generate new token\n权限勾选：repo');
+            if (!token) return;
+            localStorage.setItem('github_token', token);
+          }
+
+          // Get current file SHA (needed for update)
+          fetch('https://api.github.com/repos/Mario-lai/product-learning-system/contents/data/images-data.js', {
+            headers: { 'Authorization': 'token ' + token }
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(existing) {
+            var sha = existing.sha;
+            // Update or create file
+            return fetch('https://api.github.com/repos/Mario-lai/product-learning-system/contents/data/images-data.js', {
+              method: 'PUT',
+              headers: {
+                'Authorization': 'token ' + token,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                message: '更新产品图片数据 (' + count + ' 个产品)',
+                content: btoa(unescape(encodeURIComponent(js))),
+                sha: sha
+              })
+            });
+          })
+          .then(function(res) {
+            if (res.ok) {
+              alert('已自动部署到 GitHub！\n\n图片数据已更新，1-2分钟后所有设备即可看到图片。');
+            } else if (res.status === 404) {
+              // File doesn't exist yet, create it
+              return fetch('https://api.github.com/repos/Mario-lai/product-learning-system/contents/data/images-data.js', {
+                method: 'PUT',
+                headers: {
+                  'Authorization': 'token ' + token,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  message: '创建产品图片数据 (' + count + ' 个产品)',
+                  content: btoa(unescape(encodeURIComponent(js)))
+                })
+              }).then(function(r) {
+                if (r.ok) {
+                  alert('已自动部署到 GitHub！\n\n图片数据已创建，1-2分钟后所有设备即可看到图片。');
+                } else {
+                  throw new Error('HTTP ' + r.status);
+                }
+              });
+            } else if (res.status === 401) {
+              localStorage.removeItem('github_token');
+              throw new Error('Token 无效或已过期，请重新输入');
+            } else {
+              throw new Error('HTTP ' + res.status);
+            }
+          })
+          .catch(function(err) {
+            alert('部署失败: ' + err.message + '\n\n已导出到本地，请手动下载。');
+            // Fallback: download file
+            var blob = new Blob([js], { type: 'application/javascript;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'images-data.js';
+            link.click();
+          });
         }
 
         function aiGenerateFunctions() {
