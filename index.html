@@ -1861,24 +1861,21 @@ function renderScoresPage() {
           console.log('[CSV导入] 文件名:', file.name, '大小:', file.size, '字节');
           var reader = new FileReader();
           reader.onload = function(e) {
-            var raw = e.target.result;
+            var buf = new Uint8Array(e.target.result);
             var text;
 
-            // Try to detect encoding: check if UTF-8 text contains replacement chars or garbled text
-            // Read as ArrayBuffer first to detect encoding
-            var buf = new Uint8Array(raw);
-            var isUtf8 = true;
-            // Check for BOM
-            if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
-              text = new TextDecoder('utf-8').decode(buf.slice(3));
+            // Smart encoding detection: Chinese CSV from Excel is almost always GBK
+            // Strategy: try GBK first, verify by checking if result contains expected Chinese chars
+            var gbkText = new TextDecoder('gbk').decode(buf);
+            if (gbkText.indexOf('型号') !== -1 || gbkText.indexOf('产品') !== -1 || gbkText.indexOf('系列') !== -1) {
+              text = gbkText;
+              console.log('[CSV导入] 编码: GBK');
             } else {
-              // Try UTF-8 first, fall back to GBK if garbled
-              try {
-                text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
-              } catch(e) {
-                text = new TextDecoder('gbk').decode(buf);
-                console.log('[CSV导入] 检测到GBK编码，已自动转换');
-              }
+              // Strip BOM if present for UTF-8
+              var offset = 0;
+              if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) offset = 3;
+              text = new TextDecoder('utf-8').decode(buf.slice(offset));
+              console.log('[CSV导入] 编码: UTF-8');
             }
 
             console.log('[CSV导入] 原始文本前80字符:', text.slice(0, 80));
