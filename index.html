@@ -1918,11 +1918,8 @@ function renderScoresPage() {
             var skipped = 0;
             var products = getProducts();
 
-            for (var li = 1; li < lines.length; li++) {
-              var line = lines[li].trim();
-              if (!line) { skipped++; continue; }
-
-              // CSV parse (handles quoted fields)
+            // Helper: parse a CSV line into fields
+            function parseCSVLine(line) {
               var fields = [];
               var current = '';
               var inQuotes = false;
@@ -1933,10 +1930,48 @@ function renderScoresPage() {
                 else { current += ch; }
               }
               fields.push(current.trim());
-              console.log('[CSV导入] 第' + li + '行 fields:', JSON.stringify(fields));
+              return fields;
+            }
 
+            // Helper: check if a string looks like a product model number
+            function isModelNumber(s) {
+              return /^[A-Za-z0-9][\w\-\.\s\/]{1,30}$/.test(s) && /[A-Za-z0-9]/.test(s) && s.indexOf('*') === -1 && s.indexOf('。') === -1 && s.indexOf('，') === -1;
+            }
+
+            // Group lines: accumulate continuation lines into product rows
+            // A product row is one where the first field looks like a model number
+            var groupedRows = [];
+            var currentFields = null;
+
+            for (var li = 1; li < lines.length; li++) {
+              var line = lines[li].trim();
+              if (!line) continue;
+
+              var fields = parseCSVLine(line);
+              var firstField = fields[0] || '';
+
+              if (isModelNumber(firstField)) {
+                // This is a new product row
+                if (currentFields) groupedRows.push(currentFields);
+                currentFields = fields;
+              } else if (currentFields) {
+                // Continuation line - append remaining data to current product
+                // Find which field in currentFields needs to be extended
+                // If currentFields has fewer fields than expected, append to last field
+                // Otherwise, append to the last non-empty matching field
+                if (currentFields.length > 0) {
+                  currentFields[currentFields.length - 1] += ' ' + line;
+                }
+              }
+              // else: orphan continuation line, skip
+            }
+            if (currentFields) groupedRows.push(currentFields);
+
+            console.log('[CSV导入] 合并后产品行数:', groupedRows.length);
+
+            for (var gi = 0; gi < groupedRows.length; gi++) {
+              var fields = groupedRows[gi];
               var model = colMap.model !== undefined ? fields[colMap.model] : '';
-              console.log('[CSV导入] 第' + li + '行 model:', JSON.stringify(model));
               if (!model) { skipped++; continue; }
 
               // Check if product already exists (update) or new (add)
