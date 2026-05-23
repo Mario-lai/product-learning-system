@@ -1858,24 +1858,30 @@ function renderScoresPage() {
         function importCSV(input) {
           var file = input.files[0];
           if (!file) return;
+          console.log('[CSV导入] 文件名:', file.name, '大小:', file.size, '字节');
           var reader = new FileReader();
           reader.onload = function(e) {
             var text = e.target.result;
+            console.log('[CSV导入] 原始文本前50字符:', JSON.stringify(text.slice(0, 50)));
+            console.log('[CSV导入] 文件总长度:', text.length, '行数:', text.split(/\r\n|\r|\n/).length);
+
             // Strip BOM if present
-            if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+            if (text.charCodeAt(0) === 0xFEFF) { text = text.slice(1); console.log('[CSV导入] 已剥离BOM'); }
             // Normalize line endings
             text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
             var lines = text.split('\n');
-            if (lines.length < 2) { alert('CSV文件格式错误：至少需要表头和一行数据'); return; }
+            if (lines.length < 2) { alert('CSV文件格式错误：至少需要表头和一行数据\n检测到 ' + lines.length + ' 行'); return; }
 
             // Auto-detect delimiter
             var firstLine = lines[0];
             var delimiter = ',';
             if (firstLine.split('\t').length > firstLine.split(',').length) delimiter = '\t';
             else if (firstLine.split(';').length > firstLine.split(',').length) delimiter = ';';
+            console.log('[CSV导入] 检测到分隔符:', JSON.stringify(delimiter));
 
             // Parse header
             var header = firstLine.split(delimiter);
+            console.log('[CSV导入] 表头各列:', JSON.stringify(header));
             var colMap = {};
             for (var i = 0; i < header.length; i++) {
               var h = header[i].trim();
@@ -1887,9 +1893,10 @@ function renderScoresPage() {
               else if (h.indexOf('参数') !== -1 && h.indexOf('英文') !== -1) colMap.paramsEn = i;
               else if (h.indexOf('功能') !== -1) colMap.functions = i;
             }
+            console.log('[CSV导入] 列映射:', JSON.stringify(colMap));
 
             if (colMap.model === undefined) {
-              alert('CSV格式错误：未找到"型号"列。\n\n检测到的表头：\n' + firstLine + '\n\n请确认表头包含"型号"列');
+              alert('CSV格式错误：未找到"型号"列。\n\n检测到的表头（共' + header.length + '列）：\n' + header.map(function(h,i){return (i+1)+'. ['+h.trim()+']'}).join('\n') + '\n\n请确认表头包含"型号"列');
               return;
             }
 
@@ -1899,7 +1906,7 @@ function renderScoresPage() {
 
             for (var li = 1; li < lines.length; li++) {
               var line = lines[li].trim();
-              if (!line) continue;
+              if (!line) { skipped++; continue; }
 
               // CSV parse (handles quoted fields)
               var fields = [];
@@ -1912,8 +1919,10 @@ function renderScoresPage() {
                 else { current += ch; }
               }
               fields.push(current.trim());
+              console.log('[CSV导入] 第' + li + '行 fields:', JSON.stringify(fields));
 
               var model = colMap.model !== undefined ? fields[colMap.model] : '';
+              console.log('[CSV导入] 第' + li + '行 model:', JSON.stringify(model));
               if (!model) { skipped++; continue; }
 
               // Check if product already exists (update) or new (add)
@@ -1956,6 +1965,7 @@ function renderScoresPage() {
             }
 
             saveProducts(products);
+            console.log('[CSV导入] 完成: 导入', imported, '跳过', skipped);
             var msg = '成功导入 ' + imported + ' 个产品！';
             if (skipped > 0) msg += '\n（跳过 ' + skipped + ' 行空数据）';
             alert(msg);
