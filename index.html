@@ -1861,12 +1861,29 @@ function renderScoresPage() {
           console.log('[CSV导入] 文件名:', file.name, '大小:', file.size, '字节');
           var reader = new FileReader();
           reader.onload = function(e) {
-            var text = e.target.result;
-            console.log('[CSV导入] 原始文本前50字符:', JSON.stringify(text.slice(0, 50)));
+            var raw = e.target.result;
+            var text;
+
+            // Try to detect encoding: check if UTF-8 text contains replacement chars or garbled text
+            // Read as ArrayBuffer first to detect encoding
+            var buf = new Uint8Array(raw);
+            var isUtf8 = true;
+            // Check for BOM
+            if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+              text = new TextDecoder('utf-8').decode(buf.slice(3));
+            } else {
+              // Try UTF-8 first, fall back to GBK if garbled
+              try {
+                text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+              } catch(e) {
+                text = new TextDecoder('gbk').decode(buf);
+                console.log('[CSV导入] 检测到GBK编码，已自动转换');
+              }
+            }
+
+            console.log('[CSV导入] 原始文本前80字符:', text.slice(0, 80));
             console.log('[CSV导入] 文件总长度:', text.length, '行数:', text.split(/\r\n|\r|\n/).length);
 
-            // Strip BOM if present
-            if (text.charCodeAt(0) === 0xFEFF) { text = text.slice(1); console.log('[CSV导入] 已剥离BOM'); }
             // Normalize line endings
             text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
             var lines = text.split('\n');
@@ -1896,7 +1913,7 @@ function renderScoresPage() {
             console.log('[CSV导入] 列映射:', JSON.stringify(colMap));
 
             if (colMap.model === undefined) {
-              alert('CSV格式错误：未找到"型号"列。\n\n检测到的表头（共' + header.length + '列）：\n' + header.map(function(h,i){return (i+1)+'. ['+h.trim()+']'}).join('\n') + '\n\n请确认表头包含"型号"列');
+              alert('CSV格式错误：未找到"型号"列。\n\n检测到的表头（共' + header.length + '列）：\n' + header.map(function(h,i){return (i+1)+'. ['+h.trim()+']'}).join('\n') + '\n\n请确认表头包含"型号"列\n\n提示：如果表头是乱码，请将CSV另存为UTF-8编码');
               return;
             }
 
@@ -1972,7 +1989,7 @@ function renderScoresPage() {
             renderAdminPanel();
             input.value = '';
           };
-          reader.readAsText(file, 'UTF-8');
+          reader.readAsArrayBuffer(file);
         }
 
         function exportCSV() {
