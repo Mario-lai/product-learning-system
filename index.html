@@ -990,7 +990,8 @@
                 }
                 html += '<div class="card-body">';
                 html += '<div class="card-model">' + p.model + '</div>';
-                html += '<div class="card-name">' + (p.nameEn || p.name) + '</div>';
+                if (p.name) html += '<div class="card-name" style="font-size:14px;color:#333;font-weight:500;">' + p.name + '</div>';
+                if (p.nameEn) html += '<div class="card-name">' + p.nameEn + '</div>';
                 html += '<div class="card-params">';
                 html += '<div class="label">Product Parameters / 产品参数</div>';
                 html += '<div>' + (p.parameters || '-') + '</div>';
