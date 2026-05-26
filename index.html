@@ -664,6 +664,7 @@
             <a id="nav-scores" onclick="showPage('scores')">分数查询</a>
         </div>
         <button class="navbar-admin" onclick="showAdminLogin()">管理</button>
+        <button class="navbar-admin" onclick="if(confirm('刷新页面获取最新内容？'))location.reload(true)" style="margin-right:8px;background:#4caf50;color:#fff;">刷新</button>
     </nav>
 
     <div id="page-learn" class="page active">
@@ -7957,6 +7958,8 @@ function addWrongAnswer(question) {
 
 // Exam mode
 var examState = { questions: [], current: 0, answers: [], startTime: null, finished: false };
+var examTimer = null;
+var EXAM_TIME_LIMIT = 15 * 60; // 15分钟（秒）
 
 function renderExamSetup() {
   var el = document.getElementById('examContent');
@@ -7967,7 +7970,7 @@ function renderExamSetup() {
   }
   el.innerHTML = '<div class="exam-setup">' +
     '<p style="margin-bottom:12px;color:#666;">模拟考试将从所有产品中随机抽取题目</p>' +
-    '<p style="margin-bottom:20px;color:#999;">50题，每题2分，满分100分</p>' +
+    '<p style="margin-bottom:20px;color:#999;">50题，每题2分，满分100分 &nbsp;|&nbsp; 限时15分钟</p>' +
     '<button class="start-btn" onclick="startExam()">开始考试</button>' +
     '</div>';
 }
@@ -7986,6 +7989,27 @@ function startExam() {
     startTime: Date.now(),
     finished: false
   };
+  // 启动倒计时
+  if (examTimer) clearInterval(examTimer);
+  examTimer = setInterval(function() {
+    var elapsed = Math.floor((Date.now() - examState.startTime) / 1000);
+    var remaining = EXAM_TIME_LIMIT - elapsed;
+    var timerEl = document.getElementById('examTimer');
+    if (timerEl) {
+      if (remaining <= 0) {
+        timerEl.textContent = '00:00';
+        timerEl.style.color = '#f44336';
+        clearInterval(examTimer);
+        finishExam();
+        return;
+      }
+      var m = Math.floor(remaining / 60);
+      var s = remaining % 60;
+      timerEl.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+      if (remaining <= 60) timerEl.style.color = '#f44336';
+      else if (remaining <= 180) timerEl.style.color = '#ff9800';
+    }
+  }, 1000);
   showExamQuestion();
 }
 
@@ -8039,7 +8063,7 @@ function showExamQuestion() {
     rightContent += '</div>';
   }
 
-  el.innerHTML = '<div class="exam-progress"><span class="progress-text">第 ' + (examState.current + 1) + ' / ' + examState.questions.length + ' 题</span></div>' +
+  el.innerHTML = '<div class="exam-progress"><span class="progress-text">第 ' + (examState.current + 1) + ' / ' + examState.questions.length + ' 题</span><span id="examTimer" style="font-size:18px;font-weight:bold;color:#ff9800;float:right;">15:00</span></div>' +
     '<div class="question-area"><div class="question-left">' + leftContent + '</div><div class="question-right">' + rightContent + '</div></div>' +
     '<button onclick="reportQuestion(\'' + q.product.id + '\',\'' + q.type + '\')" style="margin-top:12px;padding:6px 16px;background:#fff;color:#999;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px;"> 此题有误，跳过</button>';
 }
@@ -8073,6 +8097,7 @@ function selectExamAnswer(optIdx, selectedId) {
 
 function finishExam() {
   examState.finished = true;
+  if (examTimer) { clearInterval(examTimer); examTimer = null; }
   var correctCount = 0;
   for (var i = 0; i < examState.answers.length; i++) {
     if (examState.answers[i].correct) correctCount++;
@@ -8107,10 +8132,14 @@ function finishExam() {
     reviewHtml += '<div class="review-item ' + cls + '"><strong>第' + (i + 1) + '题</strong> &nbsp; ' + typeLabel + ' &nbsp; 正确答案: <strong>' + q.product.model + '</strong>' + mark + '</div>';
   }
 
+  var timeUp = examState.answers.length < examState.questions.length;
+  var timeUpMsg = timeUp ? '<div style="color:#f44336;font-weight:bold;margin-bottom:8px;">⏰ 时间到！已自动交卷</div>' : '';
+
   document.getElementById('examContent').innerHTML =
     '<div class="exam-result">' +
+    timeUpMsg +
     '<div class="score-big">' + score + '分</div>' +
-    '<div class="score-label">满分' + maxScore + '分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒</div>' +
+    '<div class="score-label">满分' + maxScore + '分 &nbsp;|&nbsp; 用时 ' + mins + '分' + secs + '秒 &nbsp;|&nbsp; 答题 ' + examState.answers.length + '/' + total + '</div>' +
     '<button class="start-btn" onclick="renderExamSetup()" style="background:#1a73e8;">返回</button>' +
     '</div>' +
     '<div class="exam-review">' + reviewHtml + '</div>';
