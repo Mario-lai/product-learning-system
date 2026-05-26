@@ -1220,7 +1220,7 @@
                 var img = getProductImage(p);
                 html += '<div class="product-card">';
                 if (img) {
-                    html += '<img class="card-img" src="' + img + '" alt="' + p.model + '" onclick="openLightbox(this.src)" title="点击放大">';
+                    html += '<img class="card-img" src="' + img + '" alt="' + p.model + '" onclick="openLightbox(this.src)" title="点击放大" loading="lazy">';
                 } else {
                     html += '<div class="no-image">暂无图片</div>';
                 }
@@ -1708,7 +1708,7 @@ function renderWrongPage() {
     var img = getProductImage(w.product);
     html += '<div class="product-card">';
     if (img) {
-      html += '<img class="card-img" src="' + img + '" alt="' + w.product.model + '">';
+      html += '<img class="card-img" src="' + img + '" alt="' + w.product.model + '" loading="lazy">';
     } else {
       html += '<div class="no-image">暂无图片</div>';
     }
