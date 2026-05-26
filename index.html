@@ -727,28 +727,55 @@
         ];
 
         var DEFAULT_PRODUCTS = [];
-        // Load products from external JSON file
+        var PRODUCT_CACHE_KEY = 'products_cache_v2';
+        // Load products: cache first, then fetch from jsdelivr CDN (fast in China) with GitHub fallback
         (function() {
-          var cached = localStorage.getItem('products_cache');
+          var cached = localStorage.getItem(PRODUCT_CACHE_KEY);
           if (cached) {
-            try { DEFAULT_PRODUCTS = JSON.parse(cached); } catch(e) {}
+            try {
+              DEFAULT_PRODUCTS = JSON.parse(cached);
+              console.log('[加载] 使用缓存数据', DEFAULT_PRODUCTS.length, '个产品');
+            } catch(e) { cached = null; }
           }
-          fetch('data/products.json')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              DEFAULT_PRODUCTS = data;
-              localStorage.setItem('products_cache', JSON.stringify(data));
-              if (typeof renderProductGrid === 'function') {
-                _cachedProducts = null;
-                renderFilterBar();
-                renderProductGrid();
-                renderPracticeSetup();
-                renderExamSetup();
-                renderWrongPage();
-                renderScoresPage();
-              }
-            })
-            .catch(function() { console.log('[加载] 使用缓存数据'); });
+          if (DEFAULT_PRODUCTS.length > 0) {
+            // Already have cache, render immediately, refresh in background
+            renderAll();
+            fetchAndUpdate();
+          } else {
+            // No cache, show loading, fetch and wait
+            document.getElementById('productGrid').innerHTML = '<div style="text-align:center;padding:40px;color:#999;">加载产品数据中...</div>';
+            fetchAndUpdate();
+          }
+          function fetchAndUpdate() {
+            var repo = 'Mario-lai/product-learning-system';
+            var jsdelivr = 'https://cdn.jsdelivr.net/gh/' + repo + '@main/data/products.json';
+            var github = 'https://mario-lai.github.io/' + repo.split('/')[1] + '/data/products.json';
+            fetch(jsdelivr).then(function(r){return r.json()}).then(saveAndRender).catch(function() {
+              return fetch(github).then(function(r){return r.json()}).then(saveAndRender).catch(function() {
+                console.log('[加载] 网络加载失败，使用缓存');
+                if (DEFAULT_PRODUCTS.length === 0) {
+                  document.getElementById('productGrid').innerHTML = '<div style="text-align:center;padding:40px;color:#f44336;">加载失败，请点击右上角刷新按钮重试</div>';
+                }
+              });
+            });
+          }
+          function saveAndRender(data) {
+            if (!data || data.length === 0) return;
+            DEFAULT_PRODUCTS = data;
+            localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(data));
+            console.log('[加载] 产品数据已更新', data.length, '个');
+            renderAll();
+          }
+          function renderAll() {
+            if (typeof renderProductGrid !== 'function') return;
+            _cachedProducts = null;
+            renderFilterBar();
+            renderProductGrid();
+            renderPracticeSetup();
+            renderExamSetup();
+            renderWrongPage();
+            renderScoresPage();
+          }
         })();
 
         // IndexedDB storage for large data (images)
