@@ -193,7 +193,7 @@
         }
         .product-card .card-img {
             width: 100%;
-            height: 220px;
+            height: 300px;
             object-fit: contain;
             background: #f8f9fa;
             padding: 16px;
@@ -378,6 +378,20 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+        }
+        .next-btn-float {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            z-index: 100;
+            padding: 12px 32px;
+            font-size: 15px;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         .practice-score {
             font-size: 14px;
@@ -1093,8 +1107,8 @@
         }
 
         function resetProducts() {
-            _cachedProducts = null;
-            localStorage.removeItem('products');
+            _cachedProducts = [];
+            localStorage.setItem('products', '[]');
             _idbOpen(function(err, db) {
               if (!err) {
                 var tx = db.transaction(STORE, 'readwrite');
@@ -1435,9 +1449,17 @@ function checkPracticeAnswer(optIdx, selectedId) {
 
   document.getElementById('practiceControls').innerHTML =
     '<button class="next-btn" onclick="nextPracticeQuestion()">下一题</button>';
+  // 浮动下一题按钮（右上角）
+  var floatBtn = document.createElement('button');
+  floatBtn.className = 'next-btn-float';
+  floatBtn.textContent = '下一题 ▶';
+  floatBtn.onclick = function() { nextPracticeQuestion(); this.remove(); };
+  document.body.appendChild(floatBtn);
 }
 
 function nextPracticeQuestion() {
+  var fb = document.querySelector('.next-btn-float');
+  if (fb) fb.remove();
   practiceState.current++;
   showPracticeQuestion();
 }
@@ -1815,19 +1837,20 @@ function renderScoresPage() {
             for (var j = 0; j < SERIES.length; j++) {
               if (SERIES[j].id === p.series) { seriesLabel = SERIES[j].label.split(' ')[0]; break; }
             }
-            var imgVal = getProductImage(p);
-            var imgHtml = imgVal ? '<img src="' + imgVal + '" style="width:50px;height:50px;object-fit:contain;">' : '-';
             var params = p.parameters || '-';
             if (params.length > 30) params = params.substring(0, 30) + '...';
+            var paramsEn = p.parametersEn || '-';
+            if (paramsEn.length > 30) paramsEn = paramsEn.substring(0, 30) + '...';
             var funcs = p.functions || '-';
             if (funcs.length > 30) funcs = funcs.substring(0, 30) + '...';
 
             rows += '<tr>';
-            rows += '<td>' + imgHtml + '</td>';
             rows += '<td><strong>' + p.model + '</strong></td>';
-            rows += '<td>' + p.name + '</td>';
+            rows += '<td>' + (p.name || '-') + '</td>';
+            rows += '<td>' + (p.nameEn || '-') + '</td>';
             rows += '<td>' + seriesLabel + '</td>';
             rows += '<td title="' + (p.parameters || '') + '">' + params + '</td>';
+            rows += '<td title="' + (p.parametersEn || '') + '">' + paramsEn + '</td>';
             rows += '<td title="' + (p.functions || '') + '">' + funcs + '</td>';
             rows += '<td><button class="btn-edit" onclick="editProduct(\'' + p.id + '\')">编辑</button>';
             rows += '<button class="btn-delete" onclick="if(confirm(\'确定删除？\')){deleteProduct(\'' + p.id + '\');renderAdminPanel();}">删除</button></td>';
@@ -1840,16 +1863,12 @@ function renderScoresPage() {
             '<div>' +
             '<button class="add-btn" onclick="showAddProduct()" style="margin-right:8px;">+ 添加产品</button>' +
             '<button class="reset-btn" onclick="downloadCSVTemplate()" style="margin-right:8px;">下载导入模板</button>' +
-            '<button class="reset-btn" onclick="document.getElementById(\'csvImport\').click()" style="margin-right:8px;">批量导入CSV</button>' +
-            '<input type="file" id="csvImport" accept=".csv" onchange="importCSV(this)" style="display:none;">' +
-            '<button class="reset-btn" onclick="document.getElementById(\'xlsxImport\').click()" style="margin-right:8px;">导入Excel(含图片)</button>' +
+            '<button class="reset-btn" onclick="document.getElementById(\'xlsxImport\').click()" style="margin-right:8px;">批量导入产品</button>' +
             '<input type="file" id="xlsxImport" accept=".xlsx,.xls" onchange="importXLSX(this)" style="display:none;">' +
-            '<button class="reset-btn" onclick="exportCSV()" style="margin-right:8px;">导出CSV</button>' +
-            '<button class="reset-btn" onclick="exportImageData()" style="margin-right:8px;background:#e65100;color:#fff;">导出图片数据</button>' +
-            '<button class="reset-btn" onclick="if(confirm(\'重置为默认数据？\')){resetProducts();renderAdminPanel();}">重置数据</button>' +
+            '<button class="reset-btn" onclick="if(confirm(\'重置将删除所有产品数据，确定？\')){resetProducts();renderAdminPanel();}">重置数据</button>' +
             '</div></div>' +
             '<table class="admin-table">' +
-            '<tr><th>图片</th><th>型号</th><th>名称</th><th>系列</th><th>参数</th><th>功能</th><th>操作</th></tr>' +
+            '<tr><th>型号</th><th>产品名称(中文)</th><th>产品名称(英文)</th><th>所属系列</th><th>产品参数(中文)</th><th>产品参数(英文)</th><th>功能描述</th><th>操作</th></tr>' +
             rows + '</table>';
         }
 
