@@ -230,6 +230,42 @@
             margin-top: 10px;
             line-height: 1.6;
         }
+        /* Image lightbox */
+        .lightbox-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.85);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            cursor: zoom-out;
+        }
+        .lightbox-overlay.active {
+            display: flex;
+        }
+        .lightbox-overlay img {
+            max-width: 92vw;
+            max-height: 92vh;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #fff;
+            padding: 8px;
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 16px;
+            right: 24px;
+            color: #fff;
+            font-size: 36px;
+            cursor: pointer;
+            line-height: 1;
+            z-index: 10000;
+        }
+        .product-card .card-img {
+            cursor: zoom-in;
+        }
+
         .no-image {
             width: 100%;
             height: 220px;
@@ -277,7 +313,7 @@
         }
         .question-left img {
             max-width: 100%;
-            max-height: 300px;
+            max-height: 400px;
             object-fit: contain;
             border-radius: 8px;
             background: #f8f9fa;
@@ -314,7 +350,7 @@
         }
         .option-item img {
             max-width: 100%;
-            max-height: 120px;
+            max-height: 180px;
             object-fit: contain;
             margin-bottom: 8px;
         }
@@ -598,6 +634,11 @@
     </style>
 </head>
 <body>
+
+    <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightboxImg" src="" alt="">
+    </div>
 
     <nav class="navbar">
         <div class="navbar-logo">杰冠产品学习系统</div>
@@ -1065,12 +1106,8 @@
         function getProductImage(product) {
             if (product.images && product.images.length > 0 && product.images[0]) return product.images[0];
             if (product.image) return product.image;
-            // Fallback: load from images/ folder using model-to-file mapping
-            if (typeof IMAGE_FILE_MAP !== 'undefined' && IMAGE_FILE_MAP[product.model]) {
-              var fileName = IMAGE_FILE_MAP[product.model]; // e.g. "image236.jpeg"
-              var num = fileName.replace('image', '').replace(/\.\w+$/, ''); // "236"
-              return 'images/' + num + '.jpeg';
-            }
+            // Fallback 1: images named by model (e.g. images/A001.jpg)
+            if (product.model) return 'images/' + product.model + '.jpg';
             return '';
         }
 
@@ -1169,7 +1206,7 @@
                 var img = getProductImage(p);
                 html += '<div class="product-card">';
                 if (img) {
-                    html += '<img class="card-img" src="' + img + '" alt="' + p.model + '">';
+                    html += '<img class="card-img" src="' + img + '" alt="' + p.model + '" onclick="openLightbox(this.src)" title="点击放大">';
                 } else {
                     html += '<div class="no-image">暂无图片</div>';
                 }
@@ -1187,6 +1224,19 @@
             }
             grid.innerHTML = html;
         }
+
+        // Lightbox functions
+        function openLightbox(src) {
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightbox').classList.add('active');
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+            document.getElementById('lightboxImg').src = '';
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeLightbox();
+        });
 
         function showPage(name) {
             // Hide all pages
