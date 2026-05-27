@@ -952,7 +952,7 @@
             var html = '<button class="filter-btn active" onclick="filterBySeries(\'all\', this)">全部</button>';
             for (var i = 0; i < SERIES.length; i++) {
                 var s = SERIES[i];
-                html += '<button class="filter-btn" onclick="filterBySeries(\'' + s.id + '\', this)">' + s.label.split(' ')[0] + '</button>';
+                html += '<button class="filter-btn" onclick="filterBySeries(\'' + s.id + '\', this)">' + s.label + '</button>';
             }
             bar.innerHTML = html;
         }
